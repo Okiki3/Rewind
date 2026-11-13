@@ -24,6 +24,7 @@ function App() {
   const [amount, setAmount] = useState('0.1')
   const [review, setReview] = useState<Review | null>(null)
   const [savedRecipient, setSavedRecipient] = useState(() => localStorage.getItem('rewind-saved-recipient') || '')
+  const [threshold, setThreshold] = useState(() => localStorage.getItem('rewind-threshold-near') || '')
   const [lookupId, setLookupId] = useState('')
   const [transfer, setTransfer] = useState<Transfer | null>(null)
   const [history, setHistory] = useState<Transfer[]>([])
@@ -74,12 +75,13 @@ function App() {
           recipient, amountNear: amount, network: getNetworkId() === 'mainnet' ? 'mainnet' : 'testnet',
           contacts: savedRecipient.trim() ? [{ address: savedRecipient.trim() }] : [],
           recentRecipients: history.filter((item) => item.sender === accountId).map((item) => item.recipient),
+          warnAboveNear: threshold.trim() && Number(threshold) > 0 ? threshold.trim() : undefined,
         })
         setReview(inspected)
-        if (!inspected.valid || inspected.warnings.length) {
-          setTx({ kind: 'idle', message: '' })
-          return
-        }
+        // Always show the reviewed recipient and amount before wallet signing,
+        // even if there were no detected warnings.
+        setTx({ kind: 'idle', message: '' })
+        return
       }
       setTx({ kind: 'wallet', message: 'Approve the protected payment in your NEAR wallet.' })
       const outcome = await createTransfer(recipient.trim().toLowerCase(), amount)
@@ -224,11 +226,13 @@ function App() {
           </div>
           <details className="contact-options"><summary>Optional: compare against a saved recipient</summary>
             <input aria-label="Saved recipient to compare" value={savedRecipient} onChange={(e) => { setSavedRecipient(e.target.value); localStorage.setItem('rewind-saved-recipient', e.target.value); setReview(null) }} placeholder="e.g. alice.testnet" />
+            <label>Optional amount alert above (NEAR)<input aria-label="Amount warning threshold" value={threshold} onChange={(e) => { setThreshold(e.target.value); localStorage.setItem('rewind-threshold-near', e.target.value); setReview(null) }} placeholder="e.g. 1" inputMode="decimal" /></label>
           </details>
           {review && <div className="preflight-review" role="status">
             <strong>{review.warnings.length ? 'Please check these details' : 'Recipient check completed'}</strong>
             {review.warnings.map((warning, index) => <p key={index}>{warning.message}</p>)}
-            {!review.valid && <p>Correct the recipient to proceed.</p>}
+            <p>Review: <strong>{amount} NEAR</strong> to <strong>{review.recipient}</strong>.</p>
+            {!review.valid && <p>Recipient is not eligible for this protected send. Correct the address to proceed.</p>}
           </div>}
           <button className="primary form-submit" disabled={loading || (review !== null && !review.valid)}>{accountId ? (review ? 'Confirm and send NEAR' : 'Send NEAR') : 'Connect wallet to begin'} <span>→</span></button>
           <small className="form-help">Protected by REWIND. You can cancel within 60 seconds after sending, before delivery.</small>

@@ -34,6 +34,7 @@ describe('REWIND wallet SDK', () => {
       recipient: 'wrong.testnet', amountNear: '1', network: 'testnet', fetcher: missing,
     });
     expect(result.warnings.map((x) => x.code)).toContain('missing_account');
+    expect(result.valid).toBe(false);
   });
   it('flags unusual amounts only against a supplied threshold', async () => {
     const result = await preflight({

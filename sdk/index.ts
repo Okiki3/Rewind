@@ -123,7 +123,7 @@ export async function preflight(options: PreflightOptions): Promise<Review> {
   } catch {
     warnings.push({ code: 'unverified', message: 'Could not verify the recipient onchain. Verify the address before sending.' });
   }
-  return { recipient, warnings, valid: true, verifiedAccount };
+  return { recipient, warnings, valid: !warnings.some((warning) => warning.code === 'missing_account'), verifiedAccount };
 }
 
 export function buildProtectedSendTransaction(contractId: string, recipient: string, amountNear: string): ContractCall {
