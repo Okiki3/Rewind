@@ -1,5 +1,37 @@
 # REWIND
 
+## Current development status (new fixed-60s protocol)
+
+**The current Mainnet/testnet production sites have NOT yet been upgraded to this revision.** Existing testnet proofs below relate to the earlier variable-duration contract. They verify earlier escrow mechanics, NOT the new fixed-60-second implementation.
+
+This private feature branch introduces:
+- An immutable 60-second cancellation period computed inside the smart contract.
+- A small wallet-neutral TypeScript library in `sdk/` exposing preflight checks and NEAR transaction builders.
+- A modest change to the normal Send NEAR UI: quiet helper copy below Send, contextual warnings and a small cancellation action in transfer details.
+- A separate optional permissionless settlement worker in `keeper/`, which must be deployed and funded before automated delivery can happen.
+- A new safe refund-failure state, so an unsuccessful cancellation cannot later be delivered.
+
+**Critical:** The existing testnet contract `rewind-1794578605.testnet` still takes a caller-supplied expiration and is NOT compatible with this frontend revision. Do not deploy the new frontend against that old contract. Deploy a fresh contract account after testing and configure the frontend with its new ID.
+
+### Checks and builds
+
+```bash
+npm ci
+npm run build
+npm test
+npx tsc --project sdk/tsconfig.json
+node --test keeper/scan.test.mjs
+cargo test --locked
+cargo build --release --target wasm32-unknown-unknown --locked
+```
+
+Run `npm install` inside `keeper/` to install its independent NEAR signer dependency. For auto-release, create a separate Railway **worker** service from this repository with root directory `/keeper`, start command `npm start`, and configure `NEAR_NETWORK_ID`, `NEAR_CONTRACT_ID`, `KEEPER_ACCOUNT_ID` and `KEEPER_PRIVATE_KEY` securely (never commit secrets). The worker wallet needs enough NEAR to cover gas. Without a live keeper, delivery must be manually triggered after the period expires.
+
+A wallet provider can integrate the protocol without opening this site; see [SDK integration guide](sdk/README.md). The SDK returns a NEAR FunctionCall object and the host wallet performs the signing. Only payments intentionally routed through REWIND qualify for cancellation.
+
+**Mainnet is intended only for a limited, owner-approved smoke test** after verified Testnet deployment and security checks. This remains unaudited financial code. Do not send Mainnet funds to the old testnet contract ID or interpret prior testnet receipts as proof that the new version is deployed.
+
+
 Protected, cancellable native NEAR transfers. REWIND locks a deposit in a Rust escrow contract, lets only its sender cancel before a fixed deadline, and permits release to the recipient after that deadline. Settlement becomes final only after the NEAR transfer promise succeeds.
 
 > Experimental, unaudited Testnet software. Do not send Mainnet funds. A limited Mainnet demonstration requires explicit owner approval.
