@@ -11,7 +11,7 @@ describe('wallet approval popup', () => {
       close: vi.fn(),
       closed: false,
     }
-    const open = vi.fn(() => popup)
+    const open = vi.fn((..._args: unknown[]) => popup)
     vi.stubGlobal('window', { innerWidth: 1280, innerHeight: 800, open })
     const reserved = reserveWalletPopup('my-near-wallet')
     expect(reserved).toBe(popup)
