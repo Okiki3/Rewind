@@ -40,6 +40,17 @@ try {
       throw new Error('Frontend renders an empty or incomplete page')
     }
     if (errors.length) throw new Error('JavaScript error(s): ' + errors.join(' | '))
+    // The previous crash surfaced only when signing. Validate browser Buffer
+    // explicitly instead of assuming a successfully rendered page is enough.
+    const bufferResult = await page.evaluate(() => {
+      const BufferCtor = globalThis.Buffer
+      if (typeof BufferCtor?.from !== 'function') return 'MISSING'
+      return BufferCtor.from('{"recipient":"winner.testnet"}', 'utf8').toString('base64')
+    })
+    if (bufferResult !== 'eyJyZWNpcGllbnQiOiJ3aW5uZXIudGVzdG5ldCJ9') {
+      throw new Error('Browser Buffer API missing or misconfigured: ' + bufferResult)
+    }
+    console.log('BROWSER_BUFFER_PASS')
 
     const sdk = await page.request.get(base + 'sdk/index.js')
     console.log('SDK_HTTP', sdk.status(), 'TYPE', sdk.headers()['content-type'])

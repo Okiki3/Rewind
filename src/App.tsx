@@ -14,7 +14,7 @@ import {
   viewTransfer,
 } from './near'
 import type { Transfer, TxState } from './types'
-import { preflight, type Review } from '../sdk/index'
+import { preflight, isNearAccountId, type Review } from '../sdk/index'
 
 const initialTx: TxState = { kind: 'idle', message: '' }
 
@@ -107,6 +107,11 @@ function App() {
         // Always show the reviewed recipient and amount before wallet signing,
         // even if there were no detected warnings.
         setTx({ kind: 'idle', message: '' })
+        return
+      }
+      if (!review.valid || review.recipient !== recipient.trim().toLowerCase()) {
+        setReview(null)
+        setTx({ kind: 'error', message: 'Please review the recipient again before sending.' })
         return
       }
       setTx({ kind: 'wallet', message: 'Approve the protected payment in your NEAR wallet.' })
@@ -269,7 +274,7 @@ function App() {
             <p>You're sending <strong>{amount} NEAR</strong> to <strong>{review.recipient}</strong>.</p>
             {!review.valid && <p>This account wasn't found or the address is invalid. Check it before continuing.</p>}
           </div>}
-          <button className="primary form-submit" disabled={loading || (review !== null && !review.valid)}>{accountId ? (review ? 'Confirm and send NEAR' : 'Send NEAR') : 'Connect wallet to begin'} <span>→</span></button>
+          <button className="primary form-submit" disabled={loading || (!!accountId && (!isNearAccountId(recipient.trim().toLowerCase()) || (review !== null && !review.valid)))}>{accountId ? (review?.valid ? 'Confirm and send NEAR' : 'Review payment') : 'Connect wallet to begin'} <span>→</span></button>
           <small className="form-help">Protected by REWIND. If you send the wrong amount or enter the wrong address, you can cancel within 60 seconds.</small>
         </form>
 
