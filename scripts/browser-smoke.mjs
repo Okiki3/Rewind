@@ -66,6 +66,66 @@ try {
     if (!/Meteor|Sender|MyNearWallet|NEAR Mobile|Connect/i.test(chooser)) {
       throw new Error('Wallet chooser not visible')
     }
+    // Simulate the real Send click with a connected MyNearWallet account.
+    // The wallet asks an RPC for a block before it opens its approval popup;
+    // intercept the RPC and delay it so a missing pre-open is reproducible.
+    const sendPage = await browser.newPage({ viewport: { width: 1366, height: 768 } })
+    await sendPage.goto(base, { waitUntil: 'domcontentloaded' })
+    await sendPage.evaluate(() => {
+      localStorage.setItem('near-wallet-selector:selectedWalletId', JSON.stringify('my-near-wallet'))
+      localStorage.setItem('near-wallet-selector:contract', JSON.stringify({
+        contractId: 'rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet',
+        methodNames: [],
+      }))
+      localStorage.setItem('signedAccountId', 'sender.testnet')
+    })
+    await sendPage.route('https://rpc.testnet.near.org/**', async (route) => {
+      const request = route.request().postDataJSON()
+      if (request.method === 'query' && request.params?.request_type === 'view_account') {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: request.id,
+            result: { code_hash: '11111111111111111111111111111111' },
+          }),
+        })
+        return
+      }
+      if (request.method === 'query' && request.params?.request_type === 'call_function') {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({ jsonrpc: '2.0', id: request.id, result: { result: [91, 93] } }),
+        })
+        return
+      }
+      if (request.method === 'block') {
+        await sleep(1800)
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: request.id,
+            result: { header: { hash: '11111111111111111111111111111111' } },
+          }),
+        })
+        return
+      }
+      await route.continue()
+    })
+    await sendPage.reload({ waitUntil: 'domcontentloaded' })
+    await sendPage.getByRole('button', { name: /sender\.te.*disconnect/i }).waitFor({ timeout: 12000 })
+    await sendPage.getByPlaceholder('friend.testnet').fill('winner.testnet')
+    await sendPage.getByRole('button', { name: /^Review payment/ }).click()
+    await sendPage.getByRole('button', { name: /^Confirm and send NEAR/ }).waitFor({ timeout: 12000 })
+    // The popup must exist immediately from the user click, BEFORE block RPC finishes.
+    const popupEvent = sendPage.waitForEvent('popup', { timeout: 4500 })
+    await sendPage.getByRole('button', { name: /^Confirm and send NEAR/ }).click()
+    const approvalPopup = await popupEvent
+    const popupName = await approvalPopup.evaluate(() => window.name)
+    if (popupName !== 'MyNearWallet') throw new Error('Unexpected wallet approval window: ' + popupName)
+    console.log('MY_NEAR_WALLET_POPUP_PASS')
+    await approvalPopup.close()
+    await sendPage.close()
+
     console.log('BROWSER_SMOKE_PASS')
   } finally { await browser.close() }
 } catch (error) {
