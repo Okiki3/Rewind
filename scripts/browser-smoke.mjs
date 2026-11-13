@@ -1,0 +1,66 @@
+import { spawn } from 'node:child_process'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { chromium } from 'playwright-core'
+
+const base = 'http://127.0.0.1:4173/rewind/'
+const server = spawn('node', ['server.mjs'], {
+  env: { ...process.env, PORT: '4173' },
+  stdio: ['ignore', 'pipe', 'pipe'],
+})
+let failed = false
+server.stderr.on('data', (buf) => process.stderr.write(buf))
+server.stdout.on('data', (buf) => process.stdout.write(buf))
+
+try {
+  let available = false
+  for (let i = 0; i < 50; i++) {
+    try {
+      const response = await fetch(base)
+      if (response.ok) { available = true; break }
+    } catch {}
+    await sleep(300)
+  }
+  if (!available) throw new Error('Local REWIND server did not become available')
+
+  const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--no-sandbox'] })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } })
+    const errors = []
+    page.on('pageerror', (err) => { errors.push(err.message); console.error('BROWSER_PAGEERROR:', err.stack || err.message) })
+    page.on('console', (message) => { if (message.type() === 'error') console.error('BROWSER_CONSOLE_ERROR:', message.text()) })
+    page.on('requestfailed', (request) => console.error('BROWSER_REQUEST_FAILED:', request.url(), request.failure()?.errorText))
+
+    const resp = await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 20000 })
+    console.log('HTTP', resp?.status())
+    await page.waitForTimeout(2000)
+    const rootText = await page.locator('#root').innerText()
+    console.log('RENDERED_BODY:', rootText.slice(0, 900))
+    await page.screenshot({ path: 'rewind-browser-smoke.png', fullPage: false })
+    if (rootText.trim().length < 100 || !rootText.includes('Send NEAR')) {
+      throw new Error('Frontend renders an empty or incomplete page')
+    }
+    if (errors.length) throw new Error('JavaScript error(s): ' + errors.join(' | '))
+
+    const sdk = await page.request.get(base + 'sdk/index.js')
+    console.log('SDK_HTTP', sdk.status(), 'TYPE', sdk.headers()['content-type'])
+    if (!sdk.ok() || !(await sdk.text()).includes('buildProtectedSendTransaction')) {
+      throw new Error('Public SDK is missing or unreadable')
+    }
+
+    await page.getByRole('button', { name: /connect near wallet/i }).click()
+    await page.waitForTimeout(1000)
+    if (errors.length) throw new Error('Wallet chooser JavaScript error(s): ' + errors.join(' | '))
+    const chooser = await page.locator('body').innerText()
+    console.log('AFTER_CLICK:', chooser.slice(-700))
+    if (!/Meteor|Sender|MyNearWallet|NEAR Mobile|Connect/i.test(chooser)) {
+      throw new Error('Wallet chooser not visible')
+    }
+    console.log('BROWSER_SMOKE_PASS')
+  } finally { await browser.close() }
+} catch (error) {
+  failed = true
+  console.error('BROWSER_SMOKE_FAILURE:', error)
+} finally {
+  server.kill('SIGTERM')
+}
+if (failed) process.exitCode = 1
