@@ -1,0 +1,16 @@
+[package]
+name = "rewind-escrow"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+borsh = "1.5"
+near-sdk = { version = "5.17.2", features = ["legacy"] }
+
+[dev-dependencies]
+near-sdk = { version = "5.17.2", features = ["unit-testing", "legacy"] }
+

@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap');
+
+:root { font-family: Manrope, sans-serif; color: #edf4ea; background: #080a08; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 78% 8%, #173621 0, transparent 28rem), #080a08; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+main { max-width: 1240px; margin: auto; padding: 0 32px; }
+nav { height: 88px; display: flex; align-items: center; border-bottom: 1px solid #283129; gap: 24px; }
+.brand { color: white; text-decoration: none; font-weight: 700; letter-spacing: .2em; font-size: 18px; margin-right: auto; }
+.brand span { color: #78ef84; font-size: 26px; letter-spacing: 0; }
+.network, .wallet, footer { font-family: 'DM Mono', monospace; text-transform: uppercase; font-size: 11px; letter-spacing: .08em; }
+.network i { display: inline-block; width: 7px; height: 7px; background: #78ef84; border-radius: 50%; box-shadow: 0 0 10px #78ef84; margin-right: 5px; }
+.wallet { color: #edf4ea; background: transparent; border: 1px solid #657166; border-radius: 99px; padding: 11px 16px; }
+.wallet:hover { border-color: #78ef84; }
+header { padding: 80px 0 62px; position: relative; }
+.eyebrow { color: #78ef84; font: 500 12px 'DM Mono'; text-transform: uppercase; letter-spacing: .15em; }
+h1 { font-size: clamp(52px, 8vw, 105px); line-height: .92; letter-spacing: -.075em; margin: 22px 0 28px; max-width: 900px; font-weight: 600; }
+h1 em { color: #899389; font-style: normal; }
+.lede { max-width: 570px; color: #a6afa6; font-size: 18px; line-height: 1.65; }
+.notice { position: absolute; right: 0; bottom: 70px; border-left: 2px solid #eac867; color: #c8bea0; padding: 8px 14px; max-width: 245px; font: 11px/1.6 'DM Mono'; text-transform: uppercase; }
+.workspace { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #313a32; }
+.panel { min-height: 520px; padding: 36px; }
+.panel + .panel { border-left: 1px solid #313a32; background: #0c0f0c; }
+.panel-title { display: flex; align-items: center; gap: 13px; margin-bottom: 34px; }
+.panel-title span { color: #78ef84; font: 11px 'DM Mono'; }
+h2 { font-size: 20px; margin: 0; }
+label { display: block; color: #8d978e; font: 11px 'DM Mono'; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 24px; position: relative; }
+input { display: block; width: 100%; margin-top: 10px; border: 1px solid #39423a; background: #0e120e; color: white; padding: 16px; outline: 0; border-radius: 2px; }
+input:focus { border-color: #78ef84; box-shadow: 0 0 0 1px #78ef84; }
+label b { position: absolute; right: 14px; bottom: 18px; font-size: 10px; color: #78ef84; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.primary { width: 100%; display: flex; justify-content: space-between; padding: 18px; border: 0; background: #78ef84; color: #071008; font-weight: 700; margin-top: 14px; }
+.primary:hover { background: #9aff9f; }
+button:disabled { opacity: .38; cursor: not-allowed; }
+.create small { display: block; color: #6e776f; font: 10px/1.6 'DM Mono'; margin-top: 16px; }
+.search { display: flex; gap: 10px; }
+.search input { margin: 0; }
+.search button, .actions button { border: 1px solid #4c574d; background: transparent; color: #dce6dc; padding: 0 18px; white-space: nowrap; }
+.empty { height: 320px; display: grid; place-content: center; text-align: center; color: #69716a; }
+.empty span { color: #78ef84; font-size: 38px; }
+.card { margin-top: 28px; border: 1px solid #39423a; padding: 24px; background: #101510; }
+.card-head { display: flex; justify-content: space-between; font: 11px 'DM Mono'; color: #778079; }
+.card-head strong { color: #78ef84; text-transform: uppercase; }
+.card-head strong[data-status='Cancelled'] { color: #e6c371; }
+.card-head strong[data-status='Released'] { color: #9aa39b; }
+.amount { font-size: 40px; margin: 24px 0; }
+.amount small { font: 12px 'DM Mono'; color: #78ef84; }
+dl { margin: 0; }
+dl div { display: grid; grid-template-columns: 65px 1fr; padding: 10px 0; border-top: 1px solid #29302a; }
+dt { color: #69726a; font: 10px 'DM Mono'; text-transform: uppercase; }
+dd { margin: 0; color: #b8c1b9; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.pending { color: #e6c371; font: 11px/1.5 'DM Mono'; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.actions button { padding: 13px; }
+.toast { position: fixed; right: 24px; bottom: 24px; width: min(390px, calc(100vw - 48px)); background: #151a15; border: 1px solid #4d5a4e; border-left: 3px solid #78ef84; padding: 20px; box-shadow: 0 16px 50px #000b; z-index: 3; }
+.toast.error { border-left-color: #e27666; }
+.toast button { float: right; border: 0; background: transparent; color: #899289; font-size: 20px; }
+.toast strong { font-size: 13px; }
+.toast p, .toast a { color: #9da69e; font: 11px/1.5 'DM Mono'; }
+.toast a { color: #78ef84; }
+.history { border: 1px solid #313a32; border-top: 0; padding: 36px; }
+.history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: 10px; }
+.history-grid button { text-align: left; display: grid; gap: 8px; border: 1px solid #354036; background: #0d110d; padding: 17px; color: #dfe7df; }
+.history-grid button:hover { border-color: #78ef84; }
+.history-grid span, .history-grid em, .history-grid small, .history-empty { font: 10px 'DM Mono'; color: #737d74; font-style: normal; }
+.history-grid strong { font-size: 14px; }
+.history-grid em { color: #78ef84; text-transform: uppercase; }
+.history-empty { color: #737d74; }
+footer { display: flex; justify-content: space-between; gap: 20px; color: #657066; padding: 30px 0 50px; }
+@media (max-width: 800px) { main { padding: 0 18px; } .network { display: none; } header { padding: 55px 0; } .notice { position: static; margin-top: 30px; } .workspace { grid-template-columns: 1fr; } .panel + .panel { border-left: 0; border-top: 1px solid #313a32; } .panel { padding: 25px; min-height: auto; } footer { flex-direction: column; } }
+@media (max-width: 460px) { nav { gap: 10px; } .wallet { font-size: 9px; padding: 9px; } h1 { font-size: 48px; } .row, .actions { grid-template-columns: 1fr; } .search { flex-direction: column; } .search button { padding: 14px; } }
