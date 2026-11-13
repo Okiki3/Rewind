@@ -159,7 +159,7 @@ function App() {
       <header className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Extra protection for NEAR payments</p>
-          <h1>Send NEAR.<br /><em>Catch mistakes early.</em></h1>
+          <h1>Send NEAR.<br /><em>Catch mistakes.</em></h1>
           <p className="lede"><strong>Check the address before you send. Cancel within 60 seconds if you make a mistake.</strong> REWIND flags possible recipient typos, helps you review the amount, and delivers automatically if you don't cancel.</p>
           <div className="hero-actions">
             <a className="button primary" href="#app">Send NEAR <span>→</span></a>
@@ -280,7 +280,7 @@ function App() {
       </section>
 
       <section className="final-cta">
-        <div><p className="section-kicker">A better way to send</p><h2>Check the address.<br /><em>Then send with confidence.</em></h2></div>
+        <div><p className="section-kicker">A better way to send</p><h2>Check first.<br /><em>Send with confidence.</em></h2></div>
         <a className="button primary" href="#app">Send NEAR on Testnet <span>↑</span></a>
       </section>
 
