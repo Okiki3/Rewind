@@ -60,8 +60,9 @@ async function main() {
   // Create two independent subaccounts owned by the disposable root key.
   // WASM deployment and state occupy substantial protocol storage; reserve
   // extra test tokens instead of consuming escrow principal.
-  await root.createAccount(contractId, keyPair.getPublicKey(), nearAmount(10));
-  await root.createAccount(recipientId, keyPair.getPublicKey(), nearAmount(2));
+  // Faucet grants 10 NEAR, so retain 4 NEAR for root transaction gas.
+  await root.createAccount(contractId, keyPair.getPublicKey(), nearAmount(5));
+  await root.createAccount(recipientId, keyPair.getPublicKey(), nearAmount(1));
   await keyStore.setKey(networkId, contractId, keyPair);
   await keyStore.setKey(networkId, recipientId, keyPair);
 
