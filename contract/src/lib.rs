@@ -7,6 +7,8 @@ use near_sdk::{
 };
 
 const CALLBACK_GAS: Gas = Gas::from_tgas(10);
+/// Every REWIND payment has the same onchain cancellation period.
+const PROTECTION_WINDOW_MS: u64 = 60_000;
 
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
@@ -70,16 +72,17 @@ impl Contract {
         }
     }
 
-    /// Locks the entire attached deposit for `recipient` until `expires_at_ms`.
+    /// Holds a native NEAR payment for exactly 60 seconds after acceptance.
     /// The contract account must be separately funded for storage.
     #[payable]
-    pub fn create_transfer(&mut self, recipient: AccountId, expires_at_ms: U64) -> Transfer {
+    pub fn create_transfer(&mut self, recipient: AccountId) -> Transfer {
         let sender = env::predecessor_account_id();
         let amount = env::attached_deposit().as_yoctonear();
         let now = now_ms();
         require!(amount > 0, "Attach a positive NEAR amount");
         require!(recipient != sender, "Sender and recipient must differ");
-        require!(expires_at_ms.0 > now, "Expiry must be in the future");
+        // No wallet or frontend can supply or extend the protection window.
+        let expires_at_ms = now.checked_add(PROTECTION_WINDOW_MS).expect("Timestamp overflow");
 
         let id = self.next_transfer_id;
         self.next_transfer_id = id.checked_add(1).expect("Transfer id overflow");
@@ -88,7 +91,7 @@ impl Contract {
             sender,
             recipient,
             amount: U128(amount),
-            expires_at_ms,
+            expires_at_ms: U64(expires_at_ms),
             status: TransferStatus::Pending,
             created_at_ms: U64(now),
             settled_at_ms: None,
@@ -279,19 +282,20 @@ mod tests {
         Contract::new(account("owner.test.near"))
     }
 
-    fn create(c: &mut Contract, now: u64, expires: u64) {
+    fn create(c: &mut Contract, now: u64) {
         testing_env!(context("alice.test.near", now, ONE_NEAR).build());
-        c.create_transfer(account("bob.test.near"), U64(expires));
+        c.create_transfer(account("bob.test.near"));
     }
 
     #[test]
     fn creates_real_reservation() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
+        create(&mut c, 1_000);
         let transfer = c.get_transfer(U64(0)).unwrap();
         assert_eq!(transfer.amount, U128(ONE_NEAR));
         assert_eq!(transfer.status, TransferStatus::Pending);
+        assert_eq!(transfer.expires_at_ms, U64(61_000));
         assert_eq!(c.get_total_reserved(), U128(ONE_NEAR));
     }
 
@@ -300,7 +304,7 @@ mod tests {
     fn rejects_unauthorized_cancel() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
+        create(&mut c, 1_000);
         testing_env!(context("mallory.test.near", 1_500, 0).build());
         let _ = c.cancel(U64(0));
     }
@@ -310,8 +314,8 @@ mod tests {
     fn rejects_early_release() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("bob.test.near", 1_999, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("bob.test.near", 60_999, 0).build());
         let _ = c.release(U64(0));
     }
 
@@ -320,8 +324,8 @@ mod tests {
     fn rejects_cancel_at_expiry() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("alice.test.near", 2_000, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("alice.test.near", 61_000, 0).build());
         let _ = c.cancel(U64(0));
     }
 
@@ -331,14 +335,14 @@ mod tests {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
         testing_env!(context("alice.test.near", 1_000, 0).build());
-        c.create_transfer(account("bob.test.near"), U64(2_000));
+        c.create_transfer(account("bob.test.near"));
     }
 
     #[test]
     fn account_history_is_real_and_deduplicated() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
+        create(&mut c, 1_000);
         testing_env!(context("bob.test.near", 1_100, ONE_NEAR).build());
         c.create_transfer(account("alice.test.near"), U64(3_000));
         let alice = c.get_transfers_for_account(account("alice.test.near"), None, None);
@@ -351,8 +355,8 @@ mod tests {
     fn boundary_is_strict_cancel_then_release() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("alice.test.near", 1_999, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("alice.test.near", 60_999, 0).build());
         let _ = c.cancel(U64(0));
         assert_eq!(
             c.get_transfer(U64(0)).unwrap().status,
@@ -361,8 +365,8 @@ mod tests {
 
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("carol.test.near", 2_000, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_000, 0).build());
         let _ = c.release(U64(0));
         assert_eq!(
             c.get_transfer(U64(0)).unwrap().status,
@@ -375,8 +379,8 @@ mod tests {
     fn blocks_double_payout_while_callback_pending() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("carol.test.near", 2_000, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_000, 0).build());
         let _ = c.release(U64(0));
         let _ = c.release(U64(0));
     }
@@ -385,10 +389,10 @@ mod tests {
     fn failed_callback_restores_pending_and_retry_is_safe() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("carol.test.near", 2_000, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_000, 0).build());
         let _ = c.release(U64(0));
-        testing_env!(context("escrow.test.near", 2_001, 0).build());
+        testing_env!(context("escrow.test.near", 61_001, 0).build());
         assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
         assert_eq!(
             c.get_transfer(U64(0)).unwrap().status,
@@ -396,9 +400,9 @@ mod tests {
         );
         assert_eq!(c.get_total_reserved(), U128(ONE_NEAR));
 
-        testing_env!(context("carol.test.near", 2_002, 0).build());
+        testing_env!(context("carol.test.near", 61_002, 0).build());
         let _ = c.release(U64(0));
-        testing_env!(context("escrow.test.near", 2_003, 0).build());
+        testing_env!(context("escrow.test.near", 61_003, 0).build());
         assert!(c.on_settle(U64(0), Ok(())));
         assert_eq!(
             c.get_transfer(U64(0)).unwrap().status,
@@ -412,10 +416,10 @@ mod tests {
     fn callback_cannot_finalize_twice() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("carol.test.near", 2_000, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_000, 0).build());
         let _ = c.release(U64(0));
-        testing_env!(context("escrow.test.near", 2_001, 0).build());
+        testing_env!(context("escrow.test.near", 61_001, 0).build());
         c.on_settle(U64(0), Ok(()));
         c.on_settle(U64(0), Ok(()));
     }
@@ -428,6 +432,6 @@ mod tests {
         let mut poor = context("alice.test.near", 1_000, ONE_NEAR);
         poor.account_balance(NearToken::from_yoctonear(ONE_NEAR));
         testing_env!(poor.build());
-        c.create_transfer(account("bob.test.near"), U64(2_000));
+        c.create_transfer(account("bob.test.near"));
     }
 }
