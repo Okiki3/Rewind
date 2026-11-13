@@ -156,7 +156,7 @@ function App() {
         <div className="hero-copy">
           <p className="eyebrow">Protected transfers on NEAR</p>
           <h1>Send NEAR with<br /><em>time to fix a mistake.</em></h1>
-          <p className="lede">REWIND gives every transfer a recovery window. Your funds stay in an onchain escrow until the deadline—so if the account or amount is wrong, you can cancel and get them back before delivery.</p>
+          <p className="lede">REWIND checks for common address mistakes before you send. After a protected payment is accepted onchain, you have 60 seconds to cancel if you spot an error. Otherwise, delivery follows automatically.</p>
           <div className="hero-actions">
             <a className="button primary" href="#app">Make a protected transfer <span>→</span></a>
             <a className="button secondary" href="#how-it-works">See how it works <span>↓</span></a>
@@ -170,7 +170,7 @@ function App() {
           <div className="demo-route"><span>you.testnet</span><i>→</i><span>recipient.testnet</span></div>
           <div className="demo-window">
             <div className="demo-clock">00:42</div>
-            <div><strong>Time left to cancel</strong><span>Funds are held safely in the contract</span></div>
+            <div><strong>Time left to cancel</strong><span>Recipient has not received the funds yet</span></div>
           </div>
           <div className="demo-buttons"><span>Cancel transfer</span><span>Waiting to release</span></div>
           <div className="orbit orbit-one">↶</div><div className="orbit orbit-two">✓</div>
@@ -178,7 +178,7 @@ function App() {
       </header>
 
       <section className="proof-bar" aria-label="REWIND safeguards">
-        <div><span>01</span><strong>Real onchain escrow</strong></div>
+        <div><span>01</span><strong>Onchain payment protection</strong></div>
         <div><span>02</span><strong>Sender-only cancellation</strong></div>
         <div><span>03</span><strong>Callback-confirmed settlement</strong></div>
       </section>
@@ -201,7 +201,7 @@ function App() {
         </div>
         <div className="steps">
           <article><span>01</span><div className="step-icon">◎</div><h3>Check recipient and amount</h3><p>REWIND checks for detectable mistakes before the wallet asks you to approve.</p></article>
-          <article><span>02</span><div className="step-icon">◇</div><h3>Fund the escrow</h3><p>Approve once in your NEAR wallet. The contract holds the full amount—REWIND never takes custody offchain.</p></article>
+          <article><span>02</span><div className="step-icon">◇</div><h3>Send through REWIND</h3><p>Approve the payment in your usual NEAR wallet. REWIND applies the short protection period onchain.</p></article>
           <article><span>03</span><div className="step-icon">↶</div><h3>Catch a mistake</h3><p>Wrong recipient or wrong amount? Only the original sender can cancel before the deadline and receive the refund.</p></article>
           <article><span>04</span><div className="step-icon">✓</div><h3>Deliver with certainty</h3><p>After the 60-second window ends, delivery sends the funds only to the named recipient. A contract callback confirms the result.</p></article>
         </div>
@@ -214,7 +214,7 @@ function App() {
 
       <section className="workspace">
         <form className="panel create" onSubmit={submitCreate}>
-          <div className="panel-title"><span>CREATE</span><div><h2>New protected transfer</h2><p>Hold funds before they become final.</p></div></div>
+          <div className="panel-title"><span>CREATE</span><div><h2>Send NEAR</h2><p>Review the recipient and amount before sending.</p></div></div>
           <label>Recipient NEAR account<input required value={recipient} onChange={(e) => { setRecipient(e.target.value); setReview(null) }} placeholder="friend.testnet" /></label>
           <div className="row">
             <label>Amount<input required min="0.00001" step="any" type="number" value={amount} onChange={(e) => { setAmount(e.target.value); setReview(null) }} /><b>NEAR</b></label>
@@ -268,7 +268,7 @@ function App() {
         <div className="clarity-title"><p className="section-kicker">Built for clarity</p><h2>Protection you can verify.</h2></div>
         <div className="clarity-grid">
           <article><span>↶</span><h3>A short moment to correct mistakes</h3><p>Only the wallet that created the transfer can cancel it, and only during the first 60 seconds.</p></article>
-          <article><span>→</span><h3>Funds cannot be rerouted</h3><p>Once the deadline passes, release always pays the recipient named when the transfer was created.</p></article>
+          <article><span>→</span><h3>Funds cannot be rerouted</h3><p>After the 60-second period, delivery can only pay the recipient named when the transfer was created.</p></article>
           <article><span>✓</span><h3>Success means onchain success</h3><p>The interface waits for the contract’s settlement callback. A submitted wallet request is never presented as final.</p></article>
         </div>
       </section>
