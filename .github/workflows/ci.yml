@@ -63,5 +63,5 @@ jobs:
           name: rewind-contract-wasm
           path: target/wasm32-unknown-unknown/release
       - run: npm ci
-      - run: npm install --no-save --no-audit --no-fund near-workspaces@5.0.0
+      - run: npm install --no-save --no-audit --no-fund near-api-js@5.1.1
       - run: node integration/testnet-proof.mjs
