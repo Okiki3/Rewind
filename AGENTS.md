@@ -1,57 +1,37 @@
-# REWIND binding product specification — November 13, 2026
+# REWIND — AUTHORITATIVE PRODUCT BRIEF
 
-## What we are actually building
-REWIND is a native NEAR PAYMENT MISTAKE-PREVENTION AND 60-SECOND UNDO dApp. This is not an escrow marketplace, nor a user-configurable time-lock product.
-User flow: enter intended recipient and amount -> get preflight mistake checks -> approve protected send -> show visible 60-second Undo option -> original sender may cancel within the interval -> otherwise release worker initiates delivery after expiry. Smart contract temporarily holds funds because direct settled transfers CANNOT be reversed. Do not market REWIND as a generic escrow.
+Updated 13 November 2026. This document supersedes earlier instructions describing REWIND primarily as an escrow service, a standalone payment website, or a huge Undo interface.
 
-## Exactly 60 seconds, ONCHAIN
-The smart contract MUST calculate its own expiry as env::block_timestamp_ms() + 60_000 from transaction execution, with checked arithmetic. Remove any caller-controlled expires_at_ms argument, minutes state or duration field. Test boundary: before +60_000ms cancel allowed; at +60_000ms cancel blocked and release allowed. Timer in UI is informational, never authoritative.
+## Actual product
+REWIND is a reusable NEAR payment-protection protocol and wallet integration toolkit. It makes an ordinary NEAR send safer: (1) contextual mistake warnings BEFORE wallet signing; (2) a fixed 60-second cancellation option AFTER a protected transaction is accepted onchain, before recipient delivery. The holding contract is a behind-the-scenes technical mechanism, not the product positioning. Ordinary direct transfers already completed outside REWIND CANNOT be reversed.
 
-## Preflight checks before wallet signing
-Validate NEAR account ID, validate named account exists where possible; compare recipient to user-saved contacts and known past recipients for visually similar or edit-distance typos; warn about first-time destination and contract accounts when verifiable; flag unusually high amount ONLY based on defined prior payments or a user-set threshold. Avoid invented scam risk scores, and do not claim to know user's intention from the string alone. Provide a prominent correction option and a deliberate confirm action. Do not block legitimate contract recipients solely because they have deployed code.
+## Correct user experience
+- Preserve the current afrolitehub.com/rewind landing page, colors, layout and working deployment. Do not redesign the homepage or add marketing sections.
+- Normal send flow: recipient, amount, preflight warnings only if justified, Send NEAR button.
+- Directly BELOW Send NEAR, small quiet helper text: "Protected by REWIND. You can cancel within 60 seconds after sending, before delivery."
+- Do NOT emphasize Undo as giant text/button on the homepage or send screen. After payment, show a small but clear "Cancel transfer" link in the receipt/details/activity while the window remains open, with remaining seconds. It must be accessible even if user leaves the initial screen.
+- After window ends show "Awaiting delivery" until confirmed onchain; do not imply countdown itself delivers funds.
+- Provide a concise developer integration link/section, not a giant marketing site.
 
-## 60-second Undo and reliable delivery
-Fund contract from wallet in a genuine onchain transaction; show an obvious Undo control while status is Pending and onchain deadline not passed. Only original sender can cancel within 60 seconds, with async refund callback. After expiry an independently deployed Railway worker or equivalent monitors and triggers delivery idempotently and retries safely; the contract must enforce destination, timing and prevent duplicate payments. A manual fallback may remain for worker outages. Do not claim exact release at 60 seconds because network and worker can delay. Do not mark success until confirmed by the blockchain.
+## SDK / wallet integration IS THE CORE DELIVERABLE
+- Build a standalone TypeScript/JavaScript library usable by third-party NEAR wallet developers, independent of AfroliteHub, React and My NEAR Wallet.
+- Provide preflight function: recipient syntax/account existence via NEAR RPC, similarity to SAVED CONTACTS or prior recipients provided by the host wallet, note first-time destination, detect contract accounts if verifiable, warn of unusually high amounts only against explicit thresholds or real user history. Never make unsupported scam claims or pretend to know intended recipient.
+- Provide wallet-agnostic transaction builders: buildProtectedSendTransaction returns standard NEAR FunctionCall action for our contract (receiverId, methodName, args, gas, attached deposit); buildCancelTransaction; getStatus/history helpers. Host wallet signs; REWIND SDK never sees secret keys or signs on behalf of wallet. Existing wallet selector is only a reference demo.
+- Demonstrate the SDK in at least one second, small example-wallet integration, and document a copyable developer quickstart. Support any wallet implementing suitable NEAR transaction signing, only after that wallet elects to adopt REWIND. Do not claim REWIND protects other wallets' direct sends without integration.
+- Core protection must work without dependence on AfroliteHub hosting or an externally trusted API for custody. Independent release worker is allowed.
+- Native NEAR only in MVP, no token swaps or cross-chain integrations.
 
-## Preserve site and private repository
-Keep current REWIND design, landing page and https://afrolitehub.com/rewind routing. Do not add marketing sections or redesign the homepage. The main app should emphasize sender mistake checks and quick Undo. Mark any hero graphic as illustrative. Wallet-connected users should see true onchain transfer history automatically. Keep source Okiki3/Rewind PRIVATE, and do not publish X posts.
+## Contract invariants
+- create_transfer takes a recipient and attached NEAR, NOT user-supplied expires_at_ms. Contract computes expiry = onchain execution timestamp + exactly 60_000 milliseconds with safe arithmetic.
+- Original sender only can cancel at any timestamp strictly BEFORE expiry. Release eligible AT/AFTER expiry; recipient and amount immutable. Automated keeper triggers releases as soon as practical after expiry (exact wall-clock time cannot be guaranteed).
+- Refund and release use secure asynchronous callbacks and statuses, protect reserved funds/storage costs and guarantee no double settlement. Failed payout must be safely retryable.
+- Existing deployed testnet contract accepts configurable deadlines: do not silently alter live obligations or strand funds. Use a fresh version/account if necessary; check outstanding reserves first.
+- Run unit and sandbox tests plus actual NEAR testnet signed send/cancel/release/failure-retry transactions. Tests must cover 59,999ms vs 60,000ms boundary, incorrect caller, concurrent transfers, contract reserve and SDK behavior.
 
-## MAINNET target with safety gate
-The user explicitly wants the finished demonstration on NEAR MAINNET, not merely testnet. Make mainnet fully configurable; run unit/sandbox and signed Testnet validation first as safety checks. Prepare a fresh mainnet contract deployment, tiny-value end-to-end smoke test and wallet network configuration, but NEVER spend real NEAR, sign mainnet transactions, or deploy on mainnet without owner's explicit approval. The mainnet app must not point to the testnet contract. This is unaudited financial software: no production-security claims, restrict demo exposure/value.
-
-## Verify before calling it ready
-Unit/integration tests: sender-only cancellation, exact 60s boundary, amount and address review, concurrent deposits/reserves, no double settlement, async callback failures/retry, reliable automatic release worker, wallet rejection, and true finality messages. A previously deployed Testnet contract used caller-chosen expiry: do not silently mutate existing escrow agreements or strand funds. Consider fresh corrected contract. Report actual test commands, results, transaction hashes, outstanding blockers.
-
----
-
-## Prior engineering instructions (still applicable unless overridden above)
-
-# REWIND engineering instructions
-
-## Mission
-Ship a working protected-native-NEAR transfer web app for the 2026 NEAR Hackathon. Prioritize correct escrow behavior and a verifiable wallet-connected UI; no simulated payment success.
-
-## Repository & privacy
-- This repository (Okiki3/Rewind) is the canonical source of REWIND and must remain PRIVATE until the owner explicitly authorizes publication.
-- Make commits or PRs here, not in the existing Afrolite Hub repository.
-- Do not write an X post or create a public demo post. The owner will handle publication separately.
-
-## Demo hosting
-- Target public URL after testing: https://afrolitehub.com/rewind (this is a *path*, not a subdomain).
-- Existing Afrolite Hub runs separately as Next.js 15 on Railway, source Okiki3/Afrolite-Hub. Do not edit, deploy, or disrupt that service while REWIND is under development.
-- Keep REWIND independently deployable as its own Railway service. Support a configurable Vite base path /rewind/ and SPA fallbacks; document reverse-proxy routing from the existing Next.js site to REWIND's Railway public host. Avoid forwarding unrelated AfroliteHub routes.
-- If path forwarding proves risky close to deadline, use rewind.afrolitehub.com as an isolated fallback. Do not make DNS changes without owner's approval.
-
-## Blockchain safety
-- Implement escrow in Rust with near-sdk. User funds go to the contract; sender-only cancellation before deadline; public release after deadline; secure asynchronous transfer callbacks. Never show "paid" until contract confirms.
-- Run sandbox/unit tests, testnet deploy and real signed testnet transactions before considering mainnet.
-- Mainnet is desired for a tiny-value demonstration only after explicit approval; never deploy to mainnet or transfer real NEAR without it. The MVP is experimental and unaudited.
-- Display realistic finality/settling/pending/cancelled states; countdown alone does not settle funds.
-
-## Definition of done
-- Genuine wallet connect, deposit, cancel, release, and transfer detail/history views.
-- No fake history or onchain state, no hard-coded simulated transaction IDs.
-- No double-spend / double-payout; explicit tests for authorization, boundaries, promise failures, storage and reserved funds.
-- React/Vite/TypeScript build and Rust tests pass, or precisely report the blocker and test commands.
-- README: setup, contract/testnet deployment, environment variables, test commands, demo acceptance checks, known risks, routing to /rewind, and verified transaction hashes only.
-- Keep scope tight; don't spend time on airdrops, token swaps, social marketing, or optional AI before working escrow.
+## Hosting, privacy and MAINNET
+- Source stays Okiki3/Rewind PRIVATE; user handles X demo and later repository publication.
+- Preserve working https://afrolitehub.com/rewind and other AfroliteHub services; existing URL is correct.
+- Mainnet is the intended FINAL hackathon demo network. Build/test safely on sandbox and testnet first. Do NOT deploy to mainnet or spend real NEAR without explicit owner approval. Mainnet demo, if approved, uses isolated funds, tiny hard caps, and clearly labelled experimental unaudited software.
+- Keep UI simple and usable, avoid big Undo-centered marketing. Primary innovation: wallet-integrable preflight mistake prevention plus a quiet cancellation window.
+- Ship priority: fixed 60-second contract -> SDK and preflight + reference wallet integration -> keeper & real testnet proof -> minimal UI adjustment -> prepare mainnet.
+- Report real compilation and test results, not promises or simulations. Do not add unrelated features.
