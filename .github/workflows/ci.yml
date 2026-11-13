@@ -17,6 +17,8 @@ jobs:
       - run: npm test
       - run: npx tsc --project sdk/tsconfig.json
       - run: node --test keeper/scan.test.mjs
+      - run: cd keeper && npm install --no-fund --no-audit
+      - run: cd keeper && node --input-type=module -e "import nearAPI from 'near-api-js'; if (!nearAPI.connect || !nearAPI.KeyPair || !nearAPI.keyStores) throw Error('Missing keeper runtime exports')"
   contract:
     runs-on: ubuntu-latest
     steps:
