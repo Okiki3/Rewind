@@ -138,7 +138,7 @@ function App() {
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s left to cancel`
   }, [clock, transfer])
 
-  const canCancel = transfer?.status === 'Pending' && clock < Number(transfer.expires_at_ms) && accountId === transfer.sender
+  const canCancel = accountId === transfer?.sender && (transfer?.status === 'RefundFailed' || (transfer?.status === 'Pending' && clock < Number(transfer.expires_at_ms)))
   const canRelease = transfer?.status === 'Pending' && clock >= Number(transfer.expires_at_ms)
 
   return (
@@ -289,6 +289,7 @@ function statusLabel(status: Transfer['status']) {
   const labels: Record<Transfer['status'], string> = {
     Pending: 'Protected',
     Refunding: 'Refunding',
+    RefundFailed: 'Refund failed — retry available',
     Releasing: 'Releasing',
     Cancelled: 'Refunded',
     Released: 'Delivered',

@@ -22,6 +22,7 @@ enum StorageKey {
 pub enum TransferStatus {
     Pending,
     Refunding,
+    RefundFailed,
     Releasing,
     Cancelled,
     Released,
@@ -115,12 +116,16 @@ impl Contract {
             env::predecessor_account_id() == transfer.sender,
             "Only the sender may cancel"
         );
+        // A failed refund keeps the sender's timely cancellation request valid,
+        // even if the 60-second window has elapsed during the failed receipt.
         require!(
-            now_ms() < transfer.expires_at_ms.0,
+            transfer.status == TransferStatus::RefundFailed
+                || now_ms() < transfer.expires_at_ms.0,
             "Cancellation window closed"
         );
         require!(
-            transfer.status == TransferStatus::Pending,
+            transfer.status == TransferStatus::Pending
+                || transfer.status == TransferStatus::RefundFailed,
             "Transfer is not pending"
         );
         transfer.status = TransferStatus::Refunding;
@@ -158,7 +163,13 @@ impl Contract {
         };
 
         if result.is_err() {
-            transfer.status = TransferStatus::Pending;
+            // A refund already initiated in time must NEVER become
+            // releasable just because the outbound refund failed.
+            transfer.status = if final_status == TransferStatus::Cancelled {
+                TransferStatus::RefundFailed
+            } else {
+                TransferStatus::Pending
+            };
             self.transfers.insert(&transfer_id.0, &transfer);
             env::log_str(&format!("TRANSFER_SETTLEMENT_FAILED:{}", transfer_id.0));
             return false;
@@ -204,6 +215,18 @@ impl Contract {
             .skip(start)
             .take(take)
             .filter_map(|id| self.transfers.get(&id))
+            .collect()
+    }
+
+    /// Paginated discovery for permissionless release workers.
+    /// Fetching the next page uses a stable numeric ID range, not recent history.
+    pub fn get_pending_transfers(&self, from_index: Option<U64>, limit: Option<u32>) -> Vec<Transfer> {
+        let start = from_index.unwrap_or(U64(0)).0;
+        let take = limit.unwrap_or(30).clamp(1, 50) as u64;
+        let end = start.saturating_add(take).min(self.next_transfer_id);
+        (start..end)
+            .filter_map(|id| self.transfers.get(&id))
+            .filter(|transfer| transfer.status == TransferStatus::Pending)
             .collect()
     }
 
@@ -409,6 +432,37 @@ mod tests {
             TransferStatus::Released
         );
         assert_eq!(c.get_total_reserved(), U128(0));
+    }
+
+    #[test]
+    fn failed_refund_stays_sender_recoverable_after_expiry() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        testing_env!(context("alice.test.near", 60_999, 0).build());
+        let _ = c.cancel(U64(0));
+        testing_env!(context("escrow.test.near", 61_002, 0).build());
+        assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::RefundFailed);
+        assert_eq!(c.get_total_reserved(), U128(ONE_NEAR));
+        // Sending to the recipient is forbidden after the refund attempt.
+        assert!(c.get_pending_transfers(None, None).is_empty());
+        testing_env!(context("alice.test.near", 61_500, 0).build());
+        let _ = c.cancel(U64(0));
+        testing_env!(context("escrow.test.near", 61_501, 0).build());
+        assert!(c.on_settle(U64(0), Ok(())));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Cancelled);
+    }
+
+    #[test]
+    fn pending_page_scans_all_id_ranges() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        create(&mut c, 1_001);
+        assert_eq!(c.get_pending_transfers(Some(U64(0)), Some(1)).len(), 1);
+        assert_eq!(c.get_pending_transfers(Some(U64(1)), Some(1)).len(), 1);
+        assert_eq!(c.get_pending_transfers(Some(U64(2)), Some(1)).len(), 0);
     }
 
     #[test]
