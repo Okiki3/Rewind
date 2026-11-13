@@ -14,6 +14,7 @@ import {
   viewTransfer,
 } from './near'
 import type { Transfer, TxState } from './types'
+import { preflight, type Review } from '../sdk/index'
 
 const initialTx: TxState = { kind: 'idle', message: '' }
 
@@ -21,7 +22,9 @@ function App() {
   const [accountId, setAccountId] = useState('')
   const [recipient, setRecipient] = useState('')
   const [amount, setAmount] = useState('0.1')
-  const [minutes, setMinutes] = useState('10')
+  const [review, setReview] = useState<Review | null>(null)
+  const [savedRecipient, setSavedRecipient] = useState(() => localStorage.getItem('rewind-saved-recipient') || '')
+  const [threshold, setThreshold] = useState(() => localStorage.getItem('rewind-threshold-near') || '')
   const [lookupId, setLookupId] = useState('')
   const [transfer, setTransfer] = useState<Transfer | null>(null)
   const [history, setHistory] = useState<Transfer[]>([])
@@ -37,6 +40,15 @@ function App() {
     const timer = window.setInterval(() => setClock(Date.now()), 1_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    if (!accountId) return
+    const poll = window.setInterval(() => {
+      void viewAccountTransfers(accountId).then(setHistory).catch(() => undefined)
+      if (transfer?.id) void viewTransfer(transfer.id).then(setTransfer).catch(() => undefined)
+    }, 5_000)
+    return () => window.clearInterval(poll)
+  }, [accountId, transfer?.id])
 
   const loadTransfer = useCallback(async (id = lookupId) => {
     if (!id.trim()) return
@@ -55,17 +67,30 @@ function App() {
 
   async function submitCreate(event: FormEvent) {
     event.preventDefault()
-    if (!accountId) return connectWallet()
+    if (!accountId) return void connectWallet()
     setLoading(true)
-    setTx({ kind: 'wallet', message: 'Review and approve the protected transfer in your NEAR wallet.' })
     try {
-      const expiry = Date.now() + Number(minutes) * 60_000
-      const outcome = await createTransfer(recipient.trim(), amount, expiry)
+      if (!review) {
+        const inspected = await preflight({
+          recipient, amountNear: amount, network: getNetworkId() === 'mainnet' ? 'mainnet' : 'testnet',
+          contacts: savedRecipient.trim() ? [{ address: savedRecipient.trim() }] : [],
+          recentRecipients: history.filter((item) => item.sender === accountId).map((item) => item.recipient),
+          warnAboveNear: threshold.trim() && Number(threshold) > 0 ? threshold.trim() : undefined,
+        })
+        setReview(inspected)
+        // Always show the reviewed recipient and amount before wallet signing,
+        // even if there were no detected warnings.
+        setTx({ kind: 'idle', message: '' })
+        return
+      }
+      setTx({ kind: 'wallet', message: 'Approve the protected payment in your NEAR wallet.' })
+      const outcome = await createTransfer(recipient.trim().toLowerCase(), amount)
       const hash = outcome.transaction.hash
-      setTx({ kind: 'confirmed', message: 'Protected transfer created and confirmed onchain.', hash })
+      setTx({ kind: 'confirmed', message: 'Payment accepted onchain. Your 60-second protection period is active.', hash })
       const id = findTransferId(outcome.receipts_outcome.flatMap((receipt: { outcome: { logs: string[] } }) => receipt.outcome.logs))
       if (id) await loadTransfer(id)
       if (accountId) setHistory(await viewAccountTransfers(accountId))
+      setReview(null)
     } catch (error) {
       setTx({ kind: 'error', message: errorMessage(error) })
     } finally {
@@ -87,14 +112,19 @@ function App() {
       const outcome = action === 'cancel'
         ? await cancelTransfer(transfer.id)
         : await releaseTransfer(transfer.id)
-      setTx({
-        kind: 'confirmed',
-        message: action === 'cancel'
-          ? 'Cancellation completed. The contract confirmed the refund.'
-          : 'Release completed. The contract confirmed delivery to the recipient.',
-        hash: outcome.transaction.hash,
-      })
-      await loadTransfer(transfer.id)
+      const current = await viewTransfer(transfer.id)
+      setTransfer(current)
+      if (current && current.status === (action === 'cancel' ? 'Cancelled' : 'Released')) {
+        setTx({
+          kind: 'confirmed',
+          message: action === 'cancel' ? 'Refund confirmed onchain.' : 'Delivery confirmed onchain.',
+          hash: outcome.transaction.hash,
+        })
+      } else if (current?.status === 'RefundFailed' || current?.status === 'DeliveryFailed') {
+        setTx({ kind: 'error', message: 'Payout failed onchain. Funds remain claimable in REWIND; use the available refund or retry action.', hash: outcome.transaction.hash })
+      } else {
+        setTx({ kind: 'submitted', message: 'Settlement is being verified. Check the onchain status.', hash: outcome.transaction.hash })
+      }
       setHistory(await viewAccountTransfers(accountId))
     } catch (error) {
       setTx({ kind: 'error', message: errorMessage(error) })
@@ -112,8 +142,8 @@ function App() {
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s left to cancel`
   }, [clock, transfer])
 
-  const canCancel = transfer?.status === 'Pending' && clock < Number(transfer.expires_at_ms) && accountId === transfer.sender
-  const canRelease = transfer?.status === 'Pending' && clock >= Number(transfer.expires_at_ms)
+  const canCancel = accountId === transfer?.sender && ((transfer?.status === 'RefundFailed' || transfer?.status === 'DeliveryFailed') || (transfer?.status === 'Pending' && clock < Number(transfer.expires_at_ms)))
+  const canRelease = (transfer?.status === 'Pending' || transfer?.status === 'DeliveryFailed') && clock >= Number(transfer.expires_at_ms)
 
   return (
     <main>
@@ -130,7 +160,7 @@ function App() {
         <div className="hero-copy">
           <p className="eyebrow">Protected transfers on NEAR</p>
           <h1>Send NEAR with<br /><em>time to fix a mistake.</em></h1>
-          <p className="lede">REWIND gives every transfer a recovery window. Your funds stay in an onchain escrow until the deadline—so if the account or amount is wrong, you can cancel and get them back before delivery.</p>
+          <p className="lede">REWIND checks for common address mistakes before you send. After a protected payment is accepted onchain, you have 60 seconds to cancel if you spot an error. Otherwise, delivery follows automatically.</p>
           <div className="hero-actions">
             <a className="button primary" href="#app">Make a protected transfer <span>→</span></a>
             <a className="button secondary" href="#how-it-works">See how it works <span>↓</span></a>
@@ -138,21 +168,21 @@ function App() {
           <p className="testnet-note"><i /> Live on NEAR Testnet · Use test tokens only</p>
         </div>
 
-        <div className="hero-demo" aria-label="Illustration of a protected transfer">
+        <div className="hero-demo" aria-label="Illustrative transfer, not a live payment">
           <div className="demo-top"><span>Protected transfer</span><strong>RECOVERY ACTIVE</strong></div>
           <div className="demo-amount"><small>SENDING</small><b>8.40</b><span>NEAR</span></div>
           <div className="demo-route"><span>you.testnet</span><i>→</i><span>recipient.testnet</span></div>
           <div className="demo-window">
-            <div className="demo-clock">09:42</div>
-            <div><strong>Time left to cancel</strong><span>Funds are held safely in the contract</span></div>
+            <div className="demo-clock">00:42</div>
+            <div><strong>Time left to cancel</strong><span>Recipient has not received the funds yet</span></div>
           </div>
-          <div className="demo-buttons"><span>Cancel &amp; refund</span><span>Waiting to release</span></div>
+          <div className="demo-buttons"><span>Cancel transfer</span><span>Waiting to release</span></div>
           <div className="orbit orbit-one">↶</div><div className="orbit orbit-two">✓</div>
         </div>
       </header>
 
       <section className="proof-bar" aria-label="REWIND safeguards">
-        <div><span>01</span><strong>Real onchain escrow</strong></div>
+        <div><span>01</span><strong>Onchain payment protection</strong></div>
         <div><span>02</span><strong>Sender-only cancellation</strong></div>
         <div><span>03</span><strong>Callback-confirmed settlement</strong></div>
       </section>
@@ -163,7 +193,7 @@ function App() {
           <h2>Crypto transfers are final.<br /><em>Human mistakes are normal.</em></h2>
           <div>
             <p>A mistyped account or rushed payment should not become a permanent loss in seconds. REWIND adds a deliberate pause before delivery, giving the sender a clear chance to catch an error.</p>
-            <p className="fine-print">REWIND cannot reverse funds that have already been released. Protection applies only to transfers created through the REWIND contract and only until their chosen deadline.</p>
+            <p className="fine-print">REWIND cannot reverse funds that have already been released. Protection applies only to transfers created through the REWIND contract and only during the first 60 seconds.</p>
           </div>
         </div>
       </section>
@@ -174,10 +204,10 @@ function App() {
           <p>Four transparent steps. Every state comes from the smart contract—not from a fake progress screen.</p>
         </div>
         <div className="steps">
-          <article><span>01</span><div className="step-icon">◎</div><h3>Set the safety window</h3><p>Enter the recipient, amount, and how long you want the transfer to remain cancellable.</p></article>
-          <article><span>02</span><div className="step-icon">◇</div><h3>Fund the escrow</h3><p>Approve once in your NEAR wallet. The contract holds the full amount—REWIND never takes custody offchain.</p></article>
+          <article><span>01</span><div className="step-icon">◎</div><h3>Check recipient and amount</h3><p>REWIND checks for detectable mistakes before the wallet asks you to approve.</p></article>
+          <article><span>02</span><div className="step-icon">◇</div><h3>Send through REWIND</h3><p>Approve the payment in your usual NEAR wallet. REWIND applies the short protection period onchain.</p></article>
           <article><span>03</span><div className="step-icon">↶</div><h3>Catch a mistake</h3><p>Wrong recipient or wrong amount? Only the original sender can cancel before the deadline and receive the refund.</p></article>
-          <article><span>04</span><div className="step-icon">✓</div><h3>Deliver with certainty</h3><p>After the window ends, release sends the funds only to the named recipient. A contract callback confirms the result.</p></article>
+          <article><span>04</span><div className="step-icon">✓</div><h3>Deliver with certainty</h3><p>After the 60-second window ends, delivery sends the funds only to the named recipient. A contract callback confirms the result.</p></article>
         </div>
       </section>
 
@@ -188,14 +218,24 @@ function App() {
 
       <section className="workspace">
         <form className="panel create" onSubmit={submitCreate}>
-          <div className="panel-title"><span>CREATE</span><div><h2>New protected transfer</h2><p>Hold funds before they become final.</p></div></div>
-          <label>Recipient NEAR account<input required value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="friend.testnet" /></label>
+          <div className="panel-title"><span>CREATE</span><div><h2>Send NEAR</h2><p>Review the recipient and amount before sending.</p></div></div>
+          <label>Recipient NEAR account<input required value={recipient} onChange={(e) => { setRecipient(e.target.value); setReview(null) }} placeholder="friend.testnet" /></label>
           <div className="row">
-            <label>Amount<input required min="0.00001" step="any" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /><b>NEAR</b></label>
-            <label>Recovery window<input required min="1" max="10080" step="1" type="number" value={minutes} onChange={(e) => setMinutes(e.target.value)} /><b>MIN</b></label>
+            <label>Amount<input required min="0.00001" step="any" type="number" value={amount} onChange={(e) => { setAmount(e.target.value); setReview(null) }} /><b>NEAR</b></label>
+
           </div>
-          <button className="primary form-submit" disabled={loading}>{accountId ? 'Protect this transfer' : 'Connect wallet to begin'} <span>→</span></button>
-          <small>Your wallet will deposit the amount into the REWIND Testnet contract. It is not delivered to the recipient immediately.</small>
+          <details className="contact-options"><summary>Optional: compare against a saved recipient</summary>
+            <input aria-label="Saved recipient to compare" value={savedRecipient} onChange={(e) => { setSavedRecipient(e.target.value); localStorage.setItem('rewind-saved-recipient', e.target.value); setReview(null) }} placeholder="e.g. alice.testnet" />
+            <label>Optional amount alert above (NEAR)<input aria-label="Amount warning threshold" value={threshold} onChange={(e) => { setThreshold(e.target.value); localStorage.setItem('rewind-threshold-near', e.target.value); setReview(null) }} placeholder="e.g. 1" inputMode="decimal" /></label>
+          </details>
+          {review && <div className="preflight-review" role="status">
+            <strong>{review.warnings.length ? 'Please check these details' : 'Recipient check completed'}</strong>
+            {review.warnings.map((warning, index) => <p key={index}>{warning.message}</p>)}
+            <p>Review: <strong>{amount} NEAR</strong> to <strong>{review.recipient}</strong>.</p>
+            {!review.valid && <p>Recipient is not eligible for this protected send. Correct the address to proceed.</p>}
+          </div>}
+          <button className="primary form-submit" disabled={loading || (review !== null && !review.valid)}>{accountId ? (review ? 'Confirm and send NEAR' : 'Send NEAR') : 'Connect wallet to begin'} <span>→</span></button>
+          <small className="form-help">Protected by REWIND. You can cancel within 60 seconds after sending, before delivery.</small>
         </form>
 
         <div className="panel inspect">
@@ -216,7 +256,7 @@ function App() {
               {['Refunding', 'Releasing'].includes(transfer.status) && <p className="pending">Settlement is still processing. Funds are not final until the callback succeeds.</p>}
               <div className="actions">
                 <button onClick={() => settle('cancel')} disabled={!canCancel || loading}>Cancel &amp; refund</button>
-                <button onClick={() => settle('release')} disabled={!canRelease || loading}>Release to recipient</button>
+                <button onClick={() => settle('release')} disabled={!canRelease || loading}>Retry delivery</button>
               </div>
             </article>
           ) : <div className="empty"><span>⌁</span><p>Have a transfer ID?</p><small>Enter it above to see the live onchain status and available actions.</small></div>}
@@ -233,8 +273,8 @@ function App() {
       <section className="clarity">
         <div className="clarity-title"><p className="section-kicker">Built for clarity</p><h2>Protection you can verify.</h2></div>
         <div className="clarity-grid">
-          <article><span>↶</span><h3>The sender controls the undo window</h3><p>Only the wallet that created the transfer can cancel it, and only before the exact onchain deadline.</p></article>
-          <article><span>→</span><h3>Funds cannot be rerouted</h3><p>Once the deadline passes, release always pays the recipient named when the transfer was created.</p></article>
+          <article><span>↶</span><h3>A short moment to correct mistakes</h3><p>Only the wallet that created the transfer can cancel it, and only during the first 60 seconds.</p></article>
+          <article><span>→</span><h3>Funds cannot be rerouted</h3><p>After the 60-second period, delivery can only pay the recipient named when the transfer was created.</p></article>
           <article><span>✓</span><h3>Success means onchain success</h3><p>The interface waits for the contract’s settlement callback. A submitted wallet request is never presented as final.</p></article>
         </div>
       </section>
@@ -255,6 +295,8 @@ function statusLabel(status: Transfer['status']) {
   const labels: Record<Transfer['status'], string> = {
     Pending: 'Protected',
     Refunding: 'Refunding',
+    RefundFailed: 'Refund failed — retry available',
+    DeliveryFailed: 'Delivery failed — refund or retry available',
     Releasing: 'Releasing',
     Cancelled: 'Refunded',
     Released: 'Delivered',

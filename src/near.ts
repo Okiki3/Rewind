@@ -1,6 +1,6 @@
 import { actionCreators, setupWalletSelector, type FinalExecutionOutcome, type InjectedWallet } from '@near-wallet-selector/core'
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet'
-import { parseNear } from './amount'
+import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTransaction } from '../sdk/index'
 import type { Transfer } from './types'
 
 export { formatNear } from './amount'
@@ -57,16 +57,19 @@ export async function viewAccountTransfers(accountId: string): Promise<Transfer[
   })
 }
 
-export async function createTransfer(recipient: string, amountNear: string, expiresAtMs: number) {
-  return call('create_transfer', { recipient, expires_at_ms: String(expiresAtMs) }, parseNear(amountNear), BigInt('30000000000000'))
+export async function createTransfer(recipient: string, amountNear: string) {
+  const tx = buildProtectedSendTransaction(contractId, recipient, amountNear)
+  return call(tx.methodName, tx.args, BigInt(tx.deposit), BigInt(tx.gas))
 }
 
 export async function cancelTransfer(id: string) {
-  return call('cancel', { transfer_id: id }, 0n, BigInt('50000000000000'))
+  const tx = buildCancelTransaction(contractId, id)
+  return call(tx.methodName, tx.args, BigInt(tx.deposit), BigInt(tx.gas))
 }
 
 export async function releaseTransfer(id: string) {
-  return call('release', { transfer_id: id }, 0n, BigInt('50000000000000'))
+  const tx = buildReleaseTransaction(contractId, id)
+  return call(tx.methodName, tx.args, BigInt(tx.deposit), BigInt(tx.gas))
 }
 
 async function call(methodName: string, args: object, deposit: bigint, gas: bigint): Promise<FinalExecutionOutcome> {

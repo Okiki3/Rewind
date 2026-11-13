@@ -1,4 +1,4 @@
-export type TransferStatus = 'Pending' | 'Refunding' | 'Releasing' | 'Cancelled' | 'Released'
+export type TransferStatus = 'Pending' | 'Refunding' | 'RefundFailed' | 'Releasing' | 'DeliveryFailed' | 'Cancelled' | 'Released'
 
 export interface Transfer {
   id: string

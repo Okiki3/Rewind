@@ -1,10 +1,40 @@
 # REWIND
 
-Protected, cancellable native NEAR transfers. REWIND locks a deposit in a Rust escrow contract, lets only its sender cancel before a fixed deadline, and permits release to the recipient after that deadline. Settlement becomes final only after the NEAR transfer promise succeeds.
+## Fixed 60-second payment protection — verified
 
-> Experimental, unaudited Testnet software. Do not send Mainnet funds. A limited Mainnet demonstration requires explicit owner approval.
+REWIND is a native-NEAR payment-safety protocol: wallets can warn about mistakes before signing, then offer a **fixed 60-second correction window** after the payment enters the contract. If the sender does not cancel, a permissionless keeper requests delivery. REWIND cannot undo ordinary direct transfers that bypass its contract.
 
-## Verified Testnet deployment
+**New 60-second Testnet contract:** `rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet`
+
+- [Testnet refund, callback-confirmed](https://testnet.nearblocks.io/txns/5RN3qgGTjnqJHNwd4PF6mtooYNdTSMDPsq4hDPBhQDXJ)
+- [Testnet recipient payout, callback-confirmed](https://testnet.nearblocks.io/txns/9DyscKayVktERk3xqQtn5sGzztq7H8eFGxNC5CknEeTY)
+- [Automatic delivery proof: payment creation](https://testnet.nearblocks.io/txns/5Kqx2TW6jrw787VaHBCiqX8URk59vz496vTr3RQ7CeC6). No user called Release: the Railway keeper completed transfer #2, onchain status `Released` and reserved funds settled.
+- [Reproducible GitHub Actions Testnet proof](https://github.com/Okiki3/Rewind/actions/runs/43512886926)
+- [Automatic keeper delivery proof](https://github.com/Okiki3/Rewind/actions/runs/43515254909)
+
+**Hosting:** REWIND stays independently hosted on Railway, and `https://afrolitehub.com/rewind` is the public reference client. Another wallet can integrate the onchain contract without routing through AfroliteHub. See [wallet SDK guide](sdk/README.md) and [third-party integration example](examples/third-party-wallet/README.md).
+
+**Demo code:** `src/` with a normal Send NEAR button, contextual preflight review, small 60-second disclosure below Send, transfer status/history and a subtle cancellation option. No user-selectable timer.
+
+**Tests:**
+
+```bash
+npm ci
+npm run build
+npm test
+npx tsc --project sdk/tsconfig.json
+node --test keeper/scan.test.mjs
+cargo test --locked
+cargo build --release --target wasm32-unknown-unknown --locked
+```
+
+**Automatic delivery:** The standalone Railway `rewind-keeper` service connects to the fixed-60s Testnet contract with a separate, faucet-funded account. Its private key stays on a mounted persistent volume and is never shipped to a web browser. It scans roughly every 10 seconds and signs permissionless release calls. The contract alone enforces the expiry and payout recipient; network delay means release is not guaranteed precisely at second 60. The owner can retry after failures using the wallet.
+
+**Safety:** Experimental, unaudited financial software. Do not accept unrestricted real-money deposits. Mainnet is intentionally not deployed or activated without owner approval and a small isolated test. The old Testnet contract `rewind-1794578605.testnet` still implements a different, variable-duration interface and must not be reused with the new frontend.
+
+## Historical original Testnet contract (variable-duration; not the current implementation)
+
+## Original contract history and transaction examples
 
 - Contract: `rewind-1794578605.testnet`
 - Network: NEAR Testnet

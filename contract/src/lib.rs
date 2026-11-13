@@ -7,6 +7,8 @@ use near_sdk::{
 };
 
 const CALLBACK_GAS: Gas = Gas::from_tgas(10);
+/// Every REWIND payment has the same onchain cancellation period.
+const PROTECTION_WINDOW_MS: u64 = 60_000;
 
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
@@ -20,7 +22,9 @@ enum StorageKey {
 pub enum TransferStatus {
     Pending,
     Refunding,
+    RefundFailed,
     Releasing,
+    DeliveryFailed,
     Cancelled,
     Released,
 }
@@ -70,16 +74,17 @@ impl Contract {
         }
     }
 
-    /// Locks the entire attached deposit for `recipient` until `expires_at_ms`.
+    /// Holds a native NEAR payment for exactly 60 seconds after acceptance.
     /// The contract account must be separately funded for storage.
     #[payable]
-    pub fn create_transfer(&mut self, recipient: AccountId, expires_at_ms: U64) -> Transfer {
+    pub fn create_transfer(&mut self, recipient: AccountId) -> Transfer {
         let sender = env::predecessor_account_id();
         let amount = env::attached_deposit().as_yoctonear();
         let now = now_ms();
         require!(amount > 0, "Attach a positive NEAR amount");
         require!(recipient != sender, "Sender and recipient must differ");
-        require!(expires_at_ms.0 > now, "Expiry must be in the future");
+        // No wallet or frontend can supply or extend the protection window.
+        let expires_at_ms = now.checked_add(PROTECTION_WINDOW_MS).expect("Timestamp overflow");
 
         let id = self.next_transfer_id;
         self.next_transfer_id = id.checked_add(1).expect("Transfer id overflow");
@@ -88,7 +93,7 @@ impl Contract {
             sender,
             recipient,
             amount: U128(amount),
-            expires_at_ms,
+            expires_at_ms: U64(expires_at_ms),
             status: TransferStatus::Pending,
             created_at_ms: U64(now),
             settled_at_ms: None,
@@ -112,12 +117,18 @@ impl Contract {
             env::predecessor_account_id() == transfer.sender,
             "Only the sender may cancel"
         );
+        // A failed refund keeps the sender's timely cancellation request valid,
+        // even if the 60-second window has elapsed during the failed receipt.
         require!(
-            now_ms() < transfer.expires_at_ms.0,
+            transfer.status == TransferStatus::RefundFailed
+                || transfer.status == TransferStatus::DeliveryFailed
+                || now_ms() < transfer.expires_at_ms.0,
             "Cancellation window closed"
         );
         require!(
-            transfer.status == TransferStatus::Pending,
+            transfer.status == TransferStatus::Pending
+                || transfer.status == TransferStatus::RefundFailed
+                || transfer.status == TransferStatus::DeliveryFailed,
             "Transfer is not pending"
         );
         transfer.status = TransferStatus::Refunding;
@@ -133,7 +144,8 @@ impl Contract {
             "Transfer is still protected"
         );
         require!(
-            transfer.status == TransferStatus::Pending,
+            transfer.status == TransferStatus::Pending
+                || transfer.status == TransferStatus::DeliveryFailed,
             "Transfer is not pending"
         );
         transfer.status = TransferStatus::Releasing;
@@ -155,7 +167,16 @@ impl Contract {
         };
 
         if result.is_err() {
-            transfer.status = TransferStatus::Pending;
+            // A refund already initiated in time must NEVER become
+            // releasable just because the outbound refund failed.
+            transfer.status = if final_status == TransferStatus::Cancelled {
+                TransferStatus::RefundFailed
+            } else {
+                // Delivery failure must remain sender-recoverable after expiry.
+                // A failed transfer to a nonexistent account can never be
+                // finalized by waiting; the original sender needs a refund.
+                TransferStatus::DeliveryFailed
+            };
             self.transfers.insert(&transfer_id.0, &transfer);
             env::log_str(&format!("TRANSFER_SETTLEMENT_FAILED:{}", transfer_id.0));
             return false;
@@ -201,6 +222,18 @@ impl Contract {
             .skip(start)
             .take(take)
             .filter_map(|id| self.transfers.get(&id))
+            .collect()
+    }
+
+    /// Paginated discovery for permissionless release workers.
+    /// Fetching the next page uses a stable numeric ID range, not recent history.
+    pub fn get_pending_transfers(&self, from_index: Option<U64>, limit: Option<u32>) -> Vec<Transfer> {
+        let start = from_index.unwrap_or(U64(0)).0;
+        let take = limit.unwrap_or(30).clamp(1, 50) as u64;
+        let end = start.saturating_add(take).min(self.next_transfer_id);
+        (start..end)
+            .filter_map(|id| self.transfers.get(&id))
+            .filter(|transfer| transfer.status == TransferStatus::Pending)
             .collect()
     }
 
@@ -279,19 +312,20 @@ mod tests {
         Contract::new(account("owner.test.near"))
     }
 
-    fn create(c: &mut Contract, now: u64, expires: u64) {
+    fn create(c: &mut Contract, now: u64) {
         testing_env!(context("alice.test.near", now, ONE_NEAR).build());
-        c.create_transfer(account("bob.test.near"), U64(expires));
+        c.create_transfer(account("bob.test.near"));
     }
 
     #[test]
     fn creates_real_reservation() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
+        create(&mut c, 1_000);
         let transfer = c.get_transfer(U64(0)).unwrap();
         assert_eq!(transfer.amount, U128(ONE_NEAR));
         assert_eq!(transfer.status, TransferStatus::Pending);
+        assert_eq!(transfer.expires_at_ms, U64(61_000));
         assert_eq!(c.get_total_reserved(), U128(ONE_NEAR));
     }
 
@@ -300,7 +334,7 @@ mod tests {
     fn rejects_unauthorized_cancel() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
+        create(&mut c, 1_000);
         testing_env!(context("mallory.test.near", 1_500, 0).build());
         let _ = c.cancel(U64(0));
     }
@@ -310,8 +344,8 @@ mod tests {
     fn rejects_early_release() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("bob.test.near", 1_999, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("bob.test.near", 60_999, 0).build());
         let _ = c.release(U64(0));
     }
 
@@ -320,8 +354,8 @@ mod tests {
     fn rejects_cancel_at_expiry() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("alice.test.near", 2_000, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("alice.test.near", 61_000, 0).build());
         let _ = c.cancel(U64(0));
     }
 
@@ -331,16 +365,16 @@ mod tests {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
         testing_env!(context("alice.test.near", 1_000, 0).build());
-        c.create_transfer(account("bob.test.near"), U64(2_000));
+        c.create_transfer(account("bob.test.near"));
     }
 
     #[test]
     fn account_history_is_real_and_deduplicated() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
+        create(&mut c, 1_000);
         testing_env!(context("bob.test.near", 1_100, ONE_NEAR).build());
-        c.create_transfer(account("alice.test.near"), U64(3_000));
+        c.create_transfer(account("alice.test.near"));
         let alice = c.get_transfers_for_account(account("alice.test.near"), None, None);
         assert_eq!(alice.len(), 2);
         assert_eq!(alice[0].id, U64(1));
@@ -351,8 +385,8 @@ mod tests {
     fn boundary_is_strict_cancel_then_release() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("alice.test.near", 1_999, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("alice.test.near", 60_999, 0).build());
         let _ = c.cancel(U64(0));
         assert_eq!(
             c.get_transfer(U64(0)).unwrap().status,
@@ -361,8 +395,8 @@ mod tests {
 
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("carol.test.near", 2_000, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_000, 0).build());
         let _ = c.release(U64(0));
         assert_eq!(
             c.get_transfer(U64(0)).unwrap().status,
@@ -375,8 +409,8 @@ mod tests {
     fn blocks_double_payout_while_callback_pending() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("carol.test.near", 2_000, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_000, 0).build());
         let _ = c.release(U64(0));
         let _ = c.release(U64(0));
     }
@@ -385,20 +419,20 @@ mod tests {
     fn failed_callback_restores_pending_and_retry_is_safe() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("carol.test.near", 2_000, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_000, 0).build());
         let _ = c.release(U64(0));
-        testing_env!(context("escrow.test.near", 2_001, 0).build());
+        testing_env!(context("escrow.test.near", 61_001, 0).build());
         assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
         assert_eq!(
             c.get_transfer(U64(0)).unwrap().status,
-            TransferStatus::Pending
+            TransferStatus::DeliveryFailed
         );
         assert_eq!(c.get_total_reserved(), U128(ONE_NEAR));
 
-        testing_env!(context("carol.test.near", 2_002, 0).build());
+        testing_env!(context("carol.test.near", 61_002, 0).build());
         let _ = c.release(U64(0));
-        testing_env!(context("escrow.test.near", 2_003, 0).build());
+        testing_env!(context("escrow.test.near", 61_003, 0).build());
         assert!(c.on_settle(U64(0), Ok(())));
         assert_eq!(
             c.get_transfer(U64(0)).unwrap().status,
@@ -408,14 +442,82 @@ mod tests {
     }
 
     #[test]
+    fn failed_refund_stays_sender_recoverable_after_expiry() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        testing_env!(context("alice.test.near", 60_999, 0).build());
+        let _ = c.cancel(U64(0));
+        testing_env!(context("escrow.test.near", 61_002, 0).build());
+        assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::RefundFailed);
+        assert_eq!(c.get_total_reserved(), U128(ONE_NEAR));
+        // Sending to the recipient is forbidden after the refund attempt.
+        assert!(c.get_pending_transfers(None, None).is_empty());
+        testing_env!(context("alice.test.near", 61_500, 0).build());
+        let _ = c.cancel(U64(0));
+        testing_env!(context("escrow.test.near", 61_501, 0).build());
+        assert!(c.on_settle(U64(0), Ok(())));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Cancelled);
+    }
+
+    #[test]
+    fn failed_delivery_refund_remains_available_after_deadline() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_001, 0).build());
+        let _ = c.release(U64(0));
+        testing_env!(context("escrow.test.near", 61_002, 0).build());
+        assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::DeliveryFailed);
+        assert_eq!(c.get_total_reserved(), U128(ONE_NEAR));
+        // It must remain available for a refund, not lock indefinitely.
+        testing_env!(context("alice.test.near", 61_003, 0).build());
+        let _ = c.cancel(U64(0));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Refunding);
+        testing_env!(context("escrow.test.near", 61_004, 0).build());
+        assert!(c.on_settle(U64(0), Ok(())));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Cancelled);
+        assert_eq!(c.get_total_reserved(), U128(0));
+    }
+
+    #[test]
+    fn failed_delivery_allows_manual_retrial() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_001, 0).build());
+        let _ = c.release(U64(0));
+        testing_env!(context("escrow.test.near", 61_002, 0).build());
+        assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
+        testing_env!(context("carol.test.near", 61_003, 0).build());
+        let _ = c.release(U64(0));
+        testing_env!(context("escrow.test.near", 61_004, 0).build());
+        assert!(c.on_settle(U64(0), Ok(())));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Released);
+    }
+
+    #[test]
+    fn pending_page_scans_all_id_ranges() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        create(&mut c, 1_001);
+        assert_eq!(c.get_pending_transfers(Some(U64(0)), Some(1)).len(), 1);
+        assert_eq!(c.get_pending_transfers(Some(U64(1)), Some(1)).len(), 1);
+        assert_eq!(c.get_pending_transfers(Some(U64(2)), Some(1)).len(), 0);
+    }
+
+    #[test]
     #[should_panic(expected = "Transfer is not settling")]
     fn callback_cannot_finalize_twice() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
-        create(&mut c, 1_000, 2_000);
-        testing_env!(context("carol.test.near", 2_000, 0).build());
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_000, 0).build());
         let _ = c.release(U64(0));
-        testing_env!(context("escrow.test.near", 2_001, 0).build());
+        testing_env!(context("escrow.test.near", 61_001, 0).build());
         c.on_settle(U64(0), Ok(()));
         c.on_settle(U64(0), Ok(()));
     }
@@ -428,6 +530,6 @@ mod tests {
         let mut poor = context("alice.test.near", 1_000, ONE_NEAR);
         poor.account_balance(NearToken::from_yoctonear(ONE_NEAR));
         testing_env!(poor.build());
-        c.create_transfer(account("bob.test.near"), U64(2_000));
+        c.create_transfer(account("bob.test.near"));
     }
 }

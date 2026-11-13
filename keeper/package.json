@@ -1,0 +1,13 @@
+{
+  "name": "rewind-keeper",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs",
+    "test": "node --test scan.test.mjs"
+  },
+  "dependencies": {
+    "near-api-js": "^5.1.1"
+  }
+}
