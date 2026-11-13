@@ -82,6 +82,12 @@ All variables are build-time Vite variables:
 
 REWIND is independently deployable. `railway.toml` builds the Vite app and starts a small static server with SPA fallback at both `/` and `/rewind/`. The production Railway service should set the six variables above, including `VITE_BASE_PATH=/rewind/`.
 
+- Independent live host: https://rewind-frontend-production.up.railway.app
+- Path-ready view: https://rewind-frontend-production.up.railway.app/rewind/
+- Health check: https://rewind-frontend-production.up.railway.app/health
+
+The independent service was tested for HTTP health, root and `/rewind/` HTML, prefixed JavaScript/CSS assets, and a complete headless Chromium render. It is connected to this private repository and redeploys from `main`.
+
 Do not modify AfroliteHub until the standalone Railway health check, root page, `/rewind/` page, static assets, wallet redirect, and a full Testnet create/cancel/release flow pass. Only then, configure AfroliteHub to proxy exactly `/rewind` and `/rewind/:path*` to the independent REWIND host. Do not forward unrelated paths. `rewind.afrolitehub.com` is the safer fallback if path proxying cannot be validated before the deadline. DNS or AfroliteHub changes require owner approval.
 
 ## Known risks and remaining work
