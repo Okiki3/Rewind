@@ -1,69 +1,123 @@
 /**
- * Creates a new REWIND testnet contract through the testnet faucet, tests actual
- * sender cancellation and post-expiry delivery, and prints a contract account ID.
- * No account private keys are printed. The original variable-window contract
- * is not upgraded or modified.
+ * Fresh onchain Testnet proof using ephemeral, faucet-funded NEAR accounts.
  *
- * Run only in a temporary automated Testnet proof environment.
+ * SECURITY: No secret keys are printed, committed, or uploaded as an artifact.
+ * These accounts are intentionally disposable TESTNET accounts. A user-owned
+ * contract should be created separately for a later Mainnet demonstration.
  */
 import assert from 'node:assert/strict';
-import path from 'node:path';
-import { Worker } from 'near-workspaces';
+import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import nearAPI from 'near-api-js';
 
-const wasm = path.resolve('target/wasm32-unknown-unknown/release/rewind_escrow.wasm');
-const worker = await Worker.init({ network: 'testnet' });
-const tinyDeposit = '10000000000000000000000'; // 0.01 NEAR
+const { connect, keyStores, KeyPair } = nearAPI;
+const networkId = 'testnet';
+const rootId = ('rewindproof-' + Date.now().toString(36) + '-' + randomBytes(6).toString('hex') + '.testnet');
+const contractId = 'rewind.' + rootId;
+const recipientId = 'winner.' + rootId;
+const keyPair = KeyPair.fromRandom('ed25519');
+const publicKey = keyPair.getPublicKey().toString();
+const endpoints = ['https://helper.testnet.near.org/account', 'https://helper.nearprotocol.com/account'];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const nearAmount = (n) => BigInt(n) * 10n ** 24n;
+const tiny = 10n ** 22n; // 0.01 NEAR
 
-try {
-  const root = worker.rootAccount;
-  const sender = await root.createSubAccount('sender');
-  const recipient = await root.createSubAccount('recipient');
-  const contract = await root.devDeploy(wasm);
-  const contractId = contract.accountId;
+async function faucetAccount() {
+  const payload = JSON.stringify({ newAccountId: rootId, newAccountPublicKey: publicKey });
+  const problems = [];
+  for (const url of endpoints) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: payload,
+        signal: AbortSignal.timeout(20_000),
+      });
+      const body = await response.text();
+      if (response.ok) return;
+      problems.push(url + ': HTTP ' + response.status + ' ' + body.slice(0, 200));
+    } catch (error) { problems.push(url + ': ' + String(error)); }
+  }
+  throw new Error('Testnet faucet could not create a funded account: ' + problems.join('; '));
+}
+
+async function main() {
+  console.log('Creating an ephemeral funded Testnet account through the NEAR faucet.');
+  await faucetAccount();
+
+  const keyStore = new keyStores.InMemoryKeyStore();
+  await keyStore.setKey(networkId, rootId, keyPair);
+  const near = await connect({
+    networkId, keyStore, nodeUrl: 'https://rpc.testnet.near.org',
+  });
+  const root = await near.account(rootId);
+  let ready = false;
+  for (let i = 0; i < 25; i++) {
+    try { await root.state(); ready = true; break; } catch { await sleep(1_000); }
+  }
+  if (!ready) throw new Error('Faucet account not visible at finality');
+
+  // Create two independent subaccounts owned by the disposable root key.
+  await root.createAccount(contractId, keyPair.getPublicKey(), nearAmount(2));
+  await root.createAccount(recipientId, keyPair.getPublicKey(), nearAmount(2));
+  await keyStore.setKey(networkId, contractId, keyPair);
+  await keyStore.setKey(networkId, recipientId, keyPair);
+
+  const contract = await near.account(contractId);
+  const receiver = await near.account(recipientId);
+  await contract.deployContract(readFileSync('target/wasm32-unknown-unknown/release/rewind_escrow.wasm'));
+  await contract.functionCall({ contractId, methodName: 'new', args: { owner_id: contractId }, gas: 40_000_000_000_000n });
+
+  const view = (methodName, args) => contract.viewFunction({ contractId, methodName, args });
+  const send = (methodName, args, deposit = 0n) =>
+    root.functionCall({ contractId, methodName, args, gas: 60_000_000_000_000n, attachedDeposit: deposit });
 
   console.log('REWIND_TESTNET_CONTRACT=' + contractId);
-  await contract.call(contract, 'new', { owner_id: contractId });
 
-  await sender.call(contract, 'create_transfer', { recipient: recipient.accountId }, { attachedDeposit: tinyDeposit });
-  let first = await contract.view('get_transfer', { transfer_id: '0' });
+  const created0 = await send('create_transfer', { recipient: recipientId }, tiny);
+  let first = await view('get_transfer', { transfer_id: '0' });
   assert.equal(first.status, 'Pending');
-  assert.equal(first.amount, tinyDeposit);
+  assert.equal(first.amount, tiny.toString());
   assert.equal(BigInt(first.expires_at_ms) - BigInt(first.created_at_ms), 60_000n);
 
-  await sender.call(contract, 'cancel', { transfer_id: '0' });
-  first = await contract.view('get_transfer', { transfer_id: '0' });
-  assert.equal(first.status, 'Cancelled', 'Refund must be callback-confirmed');
-  console.log('TESTNET_REFUND_CONFIRMED=transfer-0');
+  const cancelled = await send('cancel', { transfer_id: '0' });
+  first = await view('get_transfer', { transfer_id: '0' });
+  assert.equal(first.status, 'Cancelled', 'Refund must be confirmed onchain');
+  console.log('REFUND_TX=' + cancelled.transaction.hash);
 
-  await sender.call(contract, 'create_transfer', { recipient: recipient.accountId }, { attachedDeposit: tinyDeposit });
-  const second = await contract.view('get_transfer', { transfer_id: '1' });
+  const created1 = await send('create_transfer', { recipient: recipientId }, tiny);
+  const second = await view('get_transfer', { transfer_id: '1' });
   assert.equal(second.status, 'Pending');
 
-  // Block-clock based expiry; wait in real time on Testnet.
-  const remaining = Number(second.expires_at_ms) - Date.now() + 5_000;
-  if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
-  await recipient.call(contract, 'release', { transfer_id: '1' });
-
-  const released = await contract.view('get_transfer', { transfer_id: '1' });
-  assert.equal(released.status, 'Released', 'Delivery must be callback-confirmed');
-  assert.equal(await contract.view('get_total_reserved'), '0');
-  console.log('TESTNET_DELIVERY_CONFIRMED=transfer-1');
+  const remaining = Number(second.expires_at_ms) - Date.now() + 4_000;
+  if (remaining > 0) await sleep(remaining);
+  const release = await receiver.functionCall({
+    contractId, methodName: 'release', args: { transfer_id: '1' },
+    gas: 60_000_000_000_000n,
+  });
+  const delivered = await view('get_transfer', { transfer_id: '1' });
+  assert.equal(delivered.status, 'Released', 'Delivery must be confirmed onchain');
+  assert.equal(await view('get_total_reserved', {}), '0');
+  console.log('DELIVERY_TX=' + release.transaction.hash);
   console.log('REWIND_TESTNET_PROOF=PASS');
-  console.log('TESTNET_CONTRACT_EXPLORER=https://testnet.nearblocks.io/address/' + contractId);
+  console.log('TESTNET_EXPLORER=https://testnet.nearblocks.io/address/' + contractId);
+
+  const lines = [
+    '## Verified fixed-60-second REWIND Testnet contract',
+    '- Account: \`' + contractId + '\`',
+    '- Created first: \`' + created0.transaction.hash + '\`',
+    '- Cancelled first: \`' + cancelled.transaction.hash + '\`',
+    '- Created second: \`' + created1.transaction.hash + '\`',
+    '- Delivered second: \`' + release.transaction.hash + '\`',
+    '- Reserved after settlement: 0',
+    '- Public explorer: https://testnet.nearblocks.io/address/' + contractId,
+    '- WARNING: Disposable test account, not a user-owned Mainnet deployment.',
+    '',
+  ];
   if (process.env.GITHUB_STEP_SUMMARY) {
     const fs = await import('node:fs/promises');
-    await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, [
-      '## New REWIND fixed-60-second Testnet contract',
-      '',
-      '- Account: ' + contractId,
-      '- Send + refund: verified',
-      '- Send + release: verified',
-      '- Total reserved: 0',
-      '- Explorer: https://testnet.nearblocks.io/address/' + contractId,
-      '- Note: this is an automated testnet account. Deploy a user-owned mainnet account separately.',
-      '',
-    ].join('\n'));
+    await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
   }
-} finally {
-  await worker.tearDown();
 }
+
+await main();
