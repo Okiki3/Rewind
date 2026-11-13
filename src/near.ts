@@ -3,7 +3,6 @@ import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet'
 import { setupModal } from '@near-wallet-selector/modal-ui'
 import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet'
 import { setupSender } from '@near-wallet-selector/sender'
-import { setupNearMobileWallet } from '@near-wallet-selector/near-mobile-wallet'
 import '@near-wallet-selector/modal-ui/styles.css'
 import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTransaction } from '../sdk/index'
 import type { Transfer } from './types'
@@ -22,7 +21,6 @@ const selectorPromise = setupWalletSelector({
   modules: [
     setupMeteorWallet(),
     setupSender(),
-    setupNearMobileWallet(),
     setupMyNearWallet({ walletUrl }),
   ],
 })
