@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY index.html tsconfig*.json vite.config.ts ./
 COPY src ./src
+COPY sdk ./sdk
 
 ARG VITE_NEAR_NETWORK_ID=testnet
 ARG VITE_NEAR_CONTRACT_ID
