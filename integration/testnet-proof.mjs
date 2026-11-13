@@ -58,7 +58,9 @@ async function main() {
   if (!ready) throw new Error('Faucet account not visible at finality');
 
   // Create two independent subaccounts owned by the disposable root key.
-  await root.createAccount(contractId, keyPair.getPublicKey(), nearAmount(2));
+  // WASM deployment and state occupy substantial protocol storage; reserve
+  // extra test tokens instead of consuming escrow principal.
+  await root.createAccount(contractId, keyPair.getPublicKey(), nearAmount(10));
   await root.createAccount(recipientId, keyPair.getPublicKey(), nearAmount(2));
   await keyStore.setKey(networkId, contractId, keyPair);
   await keyStore.setKey(networkId, recipientId, keyPair);
