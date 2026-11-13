@@ -2,12 +2,7 @@ FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN --mount=type=secret,id=proxy_ca,required=false \
-    if [ -f /run/secrets/proxy_ca ]; then \
-      NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca npm ci; \
-    else \
-      npm ci; \
-    fi
+RUN npm ci
 COPY index.html tsconfig*.json vite.config.ts ./
 COPY src ./src
 
