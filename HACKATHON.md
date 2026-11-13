@@ -36,7 +36,7 @@ See `sdk/README.md`. The wallet SDK builds a standard NEAR FunctionCall that an 
 ## Safety, limitations, and operational status
 
 - Existing Testnet contract `rewind-1794578605.testnet` uses the **old variable-duration ABI**. It is incompatible with this revised frontend and must NOT be used as proof for the new contract.
-- A new fixed-60-second contract ID is required before switching the website.
+- The corrected fixed-60-second Testnet contract is deployed and proven onchain: `rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet`. Keep frontend and contract ABI aligned.
 - Mainnet deployment is **not authorised** until the owner approves and verifies a funded, tiny-value, unaudited demonstration.
 - The keeper requires a funded signing account; a worker service with no valid credentials will not release automatically.
 - No guarantees of scam detection or universal transaction reversibility.
@@ -44,6 +44,12 @@ See `sdk/README.md`. The wallet SDK builds a standard NEAR FunctionCall that an 
 - When a recipient transfer fails, the sender retains a refund path instead of funds becoming permanently locked.
 - The organiser requires a public repository and public X demonstration by the deadline; the owner will publish only after the working build is accepted. Do not auto-publish.
 
-## Current reproducible results
+## Verified fixed-60-second Testnet evidence
 
-Check GitHub Actions in the private repo. Only claim contract and chain behavior shown in passing CI and verifiable transactions. Do **not** present earlier variable-window testnet transactions as proof of the revised contract.
+- Fresh contract: https://testnet.nearblocks.io/address/rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet
+- Refund: https://testnet.nearblocks.io/txns/5RN3qgGTjnqJHNwd4PF6mtooYNdTSMDPsq4hDPBhQDXJ
+- Recipient payment after expiry: https://testnet.nearblocks.io/txns/9DyscKayVktERk3xqQtn5sGzztq7H8eFGxNC5CknEeTY
+- No-click automatic payout: https://testnet.nearblocks.io/txns/5Kqx2TW6jrw787VaHBCiqX8URk59vz496vTr3RQ7CeC6 ; the keeper finalized transfer #2 without a user-triggered Release.
+- GitHub Actions [Testnet smoke test](https://github.com/Okiki3/Rewind/actions/runs/43512886926) and [keeper proof](https://github.com/Okiki3/Rewind/actions/runs/43515254909).
+- Unit/SDK/front-end checks pass. JS sandbox runner reports a WASM deserialization compatibility error on an outdated sandbox version; actual current NEAR Testnet execution succeeds. This older sandbox diagnostic is explicitly nonblocking in CI.
+- The repository remains PRIVATE until the owner chooses to publish. No Mainnet expenditure or deployment has occurred.
