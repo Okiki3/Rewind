@@ -28,6 +28,12 @@ ENV NODE_ENV=production
 COPY --chmod=644 server.mjs ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+# Include the independent delivery worker in this image because Railway
+# currently resolves the repository-level Dockerfile for both services.
+# Only the worker service runs it; website still runs server.mjs.
+COPY keeper/package.json ./keeper/package.json
+COPY keeper/index.mjs keeper/scan.mjs ./keeper/
+RUN cd keeper && npm install --omit=dev --no-audit --no-fund
 USER node
 EXPOSE 4173
 CMD ["node", "server.mjs"]
