@@ -1,0 +1,28 @@
+name: REWIND browser smoke
+on:
+  push:
+    branches: ["fix/white-screen-runtime", "main"]
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --no-package-lock playwright-core@1.58.2
+      - run: npm run build
+        env:
+          VITE_BASE_PATH: /rewind/
+          VITE_NEAR_NETWORK_ID: testnet
+          VITE_NEAR_CONTRACT_ID: rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet
+      - run: node scripts/browser-smoke.mjs
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewind-browser-screenshot
+          path: rewind-browser-smoke.png
+          if-no-files-found: ignore
