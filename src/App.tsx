@@ -18,6 +18,9 @@ import { preflight, type Review } from '../sdk/index'
 
 const initialTx: TxState = { kind: 'idle', message: '' }
 
+const SDK_SNIPPET = ["import { preflight,  buildProtectedSendTransaction }", "  from 'https://afrolitehub.com/rewind/sdk/index.js'", "", "const review = await preflight({", "  network: 'testnet', ", "  recipient: 'winner.testnet', ", "  amountNear: '1', ", "  contacts: savedContacts,  // Supplied by the wallet", "})", "// Show warnings and ask the sender to confirm.", "if (!review.valid) throw new Error('Recipient not found')", "", "const tx = buildProtectedSendTransaction(", "  'rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet', ", "  review.recipient,  '1'", ")", "// Your existing wallet signs tx. No private keys shared."].join('\n')
+
+
 function App() {
   const [accountId, setAccountId] = useState('')
   const [recipient, setRecipient] = useState('')
@@ -30,6 +33,7 @@ function App() {
   const [history, setHistory] = useState<Transfer[]>([])
   const [tx, setTx] = useState<TxState>(initialTx)
   const [loading, setLoading] = useState(false)
+  const [copiedSdk, setCopiedSdk] = useState(false)
   const [clock, setClock] = useState(Date.now())
 
   useEffect(() => {
@@ -38,7 +42,11 @@ function App() {
       if (id) viewAccountTransfers(id).then(setHistory).catch(() => setHistory([]))
     })
     const timer = window.setInterval(() => setClock(Date.now()), 1_000)
-    return () => window.clearInterval(timer)
+    // Update the account display when an injected wallet connects in place.
+    const accountTimer = window.setInterval(() => {
+      void getAccountId().then((id) => setAccountId((old) => id === old ? old : id)).catch(() => undefined)
+    }, 1_500)
+    return () => { window.clearInterval(timer); window.clearInterval(accountTimer) }
   }, [])
 
   useEffect(() => {
@@ -95,6 +103,15 @@ function App() {
       setTx({ kind: 'error', message: errorMessage(error) })
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function copySdkExample() {
+    try {
+      await navigator.clipboard.writeText(SDK_SNIPPET)
+      setCopiedSdk(true)
+    } catch {
+      setCopiedSdk(false)
     }
   }
 
@@ -276,6 +293,27 @@ function App() {
           <article><span>◎</span><h3>Address warnings, not guesses</h3><p>REWIND checks account existence and can flag addresses similar to your saved recipients. It doesn't claim to know who you meant to pay.</p></article>
           <article><span>↶</span><h3>A fixed 60-second window</h3><p>Only the sender can cancel in time. The NEAR contract enforces the deadline and original recipient.</p></article>
           <article><span>⌘</span><h3>Works beyond this website</h3><p>Wallet developers can add recipient checks and 60-second payment protection to their own NEAR send flows with the REWIND SDK.</p></article>
+        </div>
+      </section>
+
+
+      <section className="developers" id="developers">
+        <div className="developer-copy">
+          <p className="section-kicker">REWIND SDK</p>
+          <h2>Add safer payments to your NEAR wallet.</h2>
+          <p>REWIND is not limited to this website. Wallet developers can integrate the SDK to check recipient details and prepare a protected NEAR payment inside their own Send screen.</p>
+          <p>The wallet signs each payment. The smart contract handles the 60-second window and delivery. REWIND does not ask users to share private keys.</p>
+          <div className="developer-links">
+            <a href={`${import.meta.env.BASE_URL}sdk/index.js`} target="_blank" rel="noreferrer">Download JavaScript SDK</a>
+            <a href={`${import.meta.env.BASE_URL}sdk/index.d.ts`} target="_blank" rel="noreferrer">TypeScript definitions</a>
+            <a href={`${import.meta.env.BASE_URL}sdk/README.md`} target="_blank" rel="noreferrer">Integration guide</a>
+          </div>
+          <small>Wallet developers opt in to REWIND. It cannot cancel direct NEAR transfers made outside the protocol.</small>
+        </div>
+        <div className="developer-example">
+          <div className="developer-code-top"><span>Example wallet integration</span><button type="button" onClick={() => void copySdkExample()}>{copiedSdk ? 'Copied' : 'Copy code'}</button></div>
+          <pre><code>{SDK_SNIPPET}</code></pre>
+          <p>Testnet example. The wallet shows any warnings to its user and signs the standard NEAR contract call.</p>
         </div>
       </section>
 
