@@ -8,6 +8,9 @@ import {
   getContractId,
   getNetworkId,
   getAccountId,
+  getSelectedWalletName,
+  prepareWalletApproval,
+  finishWalletApproval,
   releaseTransfer,
   signOut,
   viewAccountTransfers,
@@ -114,8 +117,16 @@ function App() {
         setTx({ kind: 'error', message: 'Please review the recipient again before sending.' })
         return
       }
-      setTx({ kind: 'wallet', message: 'Approve the protected payment in your NEAR wallet.' })
-      const outcome = await createTransfer(recipient.trim().toLowerCase(), amount)
+      // Open a named wallet window during the click itself. MyNearWallet
+      // performs asynchronous RPC work before attempting to show its popup.
+      const popup = prepareWalletApproval()
+      let outcome: Awaited<ReturnType<typeof createTransfer>>
+      try {
+        setTx({ kind: 'wallet', message: 'Opening ' + getSelectedWalletName() + ' for payment approval. Check the wallet window or browser extension.' })
+        outcome = await createTransfer(recipient.trim().toLowerCase(), amount)
+      } finally {
+        finishWalletApproval(popup)
+      }
       const hash = outcome.transaction.hash
       setTx({ kind: 'confirmed', message: 'Payment accepted onchain. Your 60-second protection period is active.', hash })
       const id = findTransferId(outcome.receipts_outcome.flatMap((receipt: { outcome: { logs: string[] } }) => receipt.outcome.logs))
@@ -142,16 +153,23 @@ function App() {
     if (!transfer) return
     if (!accountId) return connectWallet()
     setLoading(true)
-    setTx({
-      kind: 'wallet',
-      message: action === 'cancel'
-        ? 'Approve the cancellation in your NEAR wallet. Your refund is not final until the contract callback succeeds.'
-        : 'Approve release in your NEAR wallet. Funds can only be sent to the named recipient.',
-    })
     try {
-      const outcome = action === 'cancel'
-        ? await cancelTransfer(transfer.id)
-        : await releaseTransfer(transfer.id)
+      // Same popup reservation for cancellation and manual release.
+      const popup = prepareWalletApproval()
+      let outcome: Awaited<ReturnType<typeof cancelTransfer>>
+      try {
+        setTx({
+          kind: 'wallet',
+          message: action === 'cancel'
+            ? 'Opening ' + getSelectedWalletName() + ' for refund approval. Your refund is not final until confirmed onchain.'
+            : 'Opening ' + getSelectedWalletName() + ' for release approval.',
+        })
+        outcome = action === 'cancel'
+          ? await cancelTransfer(transfer.id)
+          : await releaseTransfer(transfer.id)
+      } finally {
+        finishWalletApproval(popup)
+      }
       const current = await viewTransfer(transfer.id)
       setTransfer(current)
       if (current && current.status === (action === 'cancel' ? 'Cancelled' : 'Released')) {
@@ -345,7 +363,7 @@ function App() {
         <a className="button primary" href="#app">Send NEAR on Testnet <span>↑</span></a>
       </section>
 
-      {tx.kind !== 'idle' && <aside className={`toast ${tx.kind}`}><button onClick={() => setTx(initialTx)}>×</button><strong>{tx.kind === 'error' ? 'Not confirmed' : 'Transaction status'}</strong><p>{tx.message}</p>{tx.hash && <a href={explorerTx(tx.hash)} target="_blank" rel="noreferrer">View {short(tx.hash)} on NEAR explorer ↗</a>}</aside>}
+      {tx.kind !== 'idle' && <aside className={`toast ${tx.kind}`}><button onClick={() => setTx(initialTx)}>×</button><strong>{tx.kind === 'error' ? 'Not confirmed' : 'Transaction status'}</strong><p>{tx.message}</p>{tx.kind === 'wallet' && <small>Nothing opened? Check your browser's blocked-popup icon and any wallet extension window. Do not send again until you check your wallet activity.</small>}{tx.hash && <a href={explorerTx(tx.hash)} target="_blank" rel="noreferrer">View {short(tx.hash)} on NEAR explorer ↗</a>}</aside>}
 
       <footer><a className="brand footer-brand" href={import.meta.env.BASE_URL}><span className="brand-mark">↶</span> REWIND</a><div><span>Network: {getNetworkId()}</span><span>Contract: {getContractId() || 'not configured'}</span></div><p>Testnet demo. Experimental and unaudited.<br />Never send Mainnet funds.</p></footer>
     </main>

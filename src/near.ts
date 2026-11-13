@@ -6,13 +6,16 @@ import { setupSender } from '@near-wallet-selector/sender'
 import '@near-wallet-selector/modal-ui/styles.css'
 import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTransaction } from '../sdk/index'
 import type { Transfer } from './types'
+import { reserveWalletPopup, closeReservedWalletPopup, type WalletPopup } from './wallet-popup'
 
 export { formatNear } from './amount'
 
 const networkId = import.meta.env.VITE_NEAR_NETWORK_ID || 'testnet'
 const contractId = import.meta.env.VITE_NEAR_CONTRACT_ID || ''
 const nodeUrl = import.meta.env.VITE_NEAR_NODE_URL || `https://rpc.${networkId}.near.org`
-const walletUrl = import.meta.env.VITE_NEAR_WALLET_URL || `https://wallet.${networkId}.near.org`
+// Use MyNearWallet's real app host. The previous generic near.org wallet URL
+// was incompatible with this wallet selector connector.
+const walletUrl = networkId === 'mainnet' ? 'https://app.mynearwallet.com' : 'https://testnet.mynearwallet.com'
 const helperUrl = import.meta.env.VITE_NEAR_HELPER_URL || `https://helper.${networkId}.near.org`
 const explorerUrl = networkId === 'mainnet' ? 'https://nearblocks.io' : 'https://testnet.nearblocks.io'
 
@@ -26,6 +29,33 @@ const selectorPromise = setupWalletSelector({
 })
 
 let walletModal: ReturnType<typeof setupModal> | null = null
+let selectorCache: Awaited<typeof selectorPromise> | null = null
+void selectorPromise.then((selector) => { selectorCache = selector }).catch(() => undefined)
+
+export function getSelectedWalletId(): string {
+  return selectorCache?.store.getState().selectedWalletId || ''
+}
+
+export function getSelectedWalletName(): string {
+  const selected = getSelectedWalletId()
+  if (selected === 'my-near-wallet') return 'MyNearWallet'
+  if (selected === 'meteor-wallet') return 'Meteor Wallet'
+  if (selected === 'sender') return 'Sender Wallet'
+  return selected || 'your connected wallet'
+}
+
+/**
+ * Reserve a MyNearWallet window while we're still in a direct user gesture.
+ * Its connector first awaits a NEAR RPC block before calling window.open;
+ * browsers often block that delayed popup unless its named window exists.
+ */
+export function prepareWalletApproval(): WalletPopup {
+  return reserveWalletPopup(getSelectedWalletId())
+}
+
+export function finishWalletApproval(popup: WalletPopup): void {
+  closeReservedWalletPopup(popup)
+}
 
 export async function getAccountId() {
   const selector = await selectorPromise
