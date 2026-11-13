@@ -65,3 +65,18 @@ jobs:
       - run: npm ci
       - run: npm install --no-save --no-audit --no-fund near-api-js@5.1.1
       - run: node integration/testnet-proof.mjs
+
+  keeper-proof:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[keeper-proof]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm install --no-save --no-audit --no-fund near-api-js@5.1.1
+      - run: node integration/keeper-proof.mjs
+        env:
+          NEAR_CONTRACT_ID: rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet
