@@ -1,7 +1,7 @@
 name: Sync wallet integration dependencies
 on:
   push:
-    branches: [fix/site-copy-wallet-sdk]
+    branches: [fix/site-copy-wallet-sdk, fix/white-screen-runtime]
     paths:
       - package.json
       - .github/workflows/sync-wallet-deps.yml

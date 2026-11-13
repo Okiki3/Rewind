@@ -5,6 +5,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const base = env.VITE_BASE_PATH || '/'
   return {
+    resolve: { alias: { buffer: 'buffer/' } },
+    define: { global: 'globalThis' },
     base: base.endsWith('/') ? base : `${base}/`,
     plugins: [react()],
     server: { host: true },
