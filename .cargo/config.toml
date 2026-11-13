@@ -1,0 +1,4 @@
+# Restrict the WebAssembly feature set to instructions supported by NEAR
+# execution environments. This also applies to non-CI builds.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=-bulk-memory,-reference-types,-multivalue,-simd128"]
