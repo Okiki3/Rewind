@@ -118,6 +118,8 @@ function App() {
           message: action === 'cancel' ? 'Refund confirmed onchain.' : 'Delivery confirmed onchain.',
           hash: outcome.transaction.hash,
         })
+      } else if (current?.status === 'RefundFailed' || current?.status === 'DeliveryFailed') {
+        setTx({ kind: 'error', message: 'Payout failed onchain. Funds remain claimable in REWIND; use the available refund or retry action.', hash: outcome.transaction.hash })
       } else {
         setTx({ kind: 'submitted', message: 'Settlement is being verified. Check the onchain status.', hash: outcome.transaction.hash })
       }
@@ -138,8 +140,8 @@ function App() {
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s left to cancel`
   }, [clock, transfer])
 
-  const canCancel = accountId === transfer?.sender && (transfer?.status === 'RefundFailed' || (transfer?.status === 'Pending' && clock < Number(transfer.expires_at_ms)))
-  const canRelease = transfer?.status === 'Pending' && clock >= Number(transfer.expires_at_ms)
+  const canCancel = accountId === transfer?.sender && ((transfer?.status === 'RefundFailed' || transfer?.status === 'DeliveryFailed') || (transfer?.status === 'Pending' && clock < Number(transfer.expires_at_ms)))
+  const canRelease = (transfer?.status === 'Pending' || transfer?.status === 'DeliveryFailed') && clock >= Number(transfer.expires_at_ms)
 
   return (
     <main>
@@ -290,6 +292,7 @@ function statusLabel(status: Transfer['status']) {
     Pending: 'Protected',
     Refunding: 'Refunding',
     RefundFailed: 'Refund failed — retry available',
+    DeliveryFailed: 'Delivery failed — refund or retry available',
     Releasing: 'Releasing',
     Cancelled: 'Refunded',
     Released: 'Delivered',

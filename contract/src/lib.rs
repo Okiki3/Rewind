@@ -24,6 +24,7 @@ pub enum TransferStatus {
     Refunding,
     RefundFailed,
     Releasing,
+    DeliveryFailed,
     Cancelled,
     Released,
 }
@@ -120,12 +121,14 @@ impl Contract {
         // even if the 60-second window has elapsed during the failed receipt.
         require!(
             transfer.status == TransferStatus::RefundFailed
+                || transfer.status == TransferStatus::DeliveryFailed
                 || now_ms() < transfer.expires_at_ms.0,
             "Cancellation window closed"
         );
         require!(
             transfer.status == TransferStatus::Pending
-                || transfer.status == TransferStatus::RefundFailed,
+                || transfer.status == TransferStatus::RefundFailed
+                || transfer.status == TransferStatus::DeliveryFailed,
             "Transfer is not pending"
         );
         transfer.status = TransferStatus::Refunding;
@@ -141,7 +144,8 @@ impl Contract {
             "Transfer is still protected"
         );
         require!(
-            transfer.status == TransferStatus::Pending,
+            transfer.status == TransferStatus::Pending
+                || transfer.status == TransferStatus::DeliveryFailed,
             "Transfer is not pending"
         );
         transfer.status = TransferStatus::Releasing;
@@ -168,7 +172,10 @@ impl Contract {
             transfer.status = if final_status == TransferStatus::Cancelled {
                 TransferStatus::RefundFailed
             } else {
-                TransferStatus::Pending
+                // Delivery failure must remain sender-recoverable after expiry.
+                // A failed transfer to a nonexistent account can never be
+                // finalized by waiting; the original sender needs a refund.
+                TransferStatus::DeliveryFailed
             };
             self.transfers.insert(&transfer_id.0, &transfer);
             env::log_str(&format!("TRANSFER_SETTLEMENT_FAILED:{}", transfer_id.0));
@@ -452,6 +459,43 @@ mod tests {
         testing_env!(context("escrow.test.near", 61_501, 0).build());
         assert!(c.on_settle(U64(0), Ok(())));
         assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Cancelled);
+    }
+
+    #[test]
+    fn failed_delivery_refund_remains_available_after_deadline() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_001, 0).build());
+        let _ = c.release(U64(0));
+        testing_env!(context("escrow.test.near", 61_002, 0).build());
+        assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::DeliveryFailed);
+        assert_eq!(c.get_total_reserved(), U128(ONE_NEAR));
+        // It must remain available for a refund, not lock indefinitely.
+        testing_env!(context("alice.test.near", 61_003, 0).build());
+        let _ = c.cancel(U64(0));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Refunding);
+        testing_env!(context("escrow.test.near", 61_004, 0).build());
+        assert!(c.on_settle(U64(0), Ok(())));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Cancelled);
+        assert_eq!(c.get_total_reserved(), U128(0));
+    }
+
+    #[test]
+    fn failed_delivery_allows_manual_retrial() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        testing_env!(context("carol.test.near", 61_001, 0).build());
+        let _ = c.release(U64(0));
+        testing_env!(context("escrow.test.near", 61_002, 0).build());
+        assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
+        testing_env!(context("carol.test.near", 61_003, 0).build());
+        let _ = c.release(U64(0));
+        testing_env!(context("escrow.test.near", 61_004, 0).build());
+        assert!(c.on_settle(U64(0), Ok(())));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Released);
     }
 
     #[test]
