@@ -149,18 +149,18 @@ function App() {
     <main>
       <nav>
         <a className="brand" href={import.meta.env.BASE_URL} aria-label="REWIND home"><span className="brand-mark">↶</span> REWIND <b>NEAR</b></a>
-        <div className="nav-links"><a href="#how-it-works">How it works</a><a href="#app">Send NEAR</a></div>
+        <div className="nav-links"><a href="#how-it-works">How it works</a><a href="#app">Send NEAR</a><a href="#developers">SDK</a></div>
         <div className="network"><i /> {getNetworkId()}</div>
         {accountId
           ? <button className="wallet" onClick={signOut}>{short(accountId)} · disconnect</button>
-          : <button className="wallet" onClick={connectWallet}>Connect NEAR wallet</button>}
+          : <button className="wallet" onClick={() => { void connectWallet().catch((error: unknown) => setTx({ kind: 'error', message: errorMessage(error) })) }}>Connect NEAR wallet</button>}
       </nav>
 
       <header className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Extra protection for NEAR payments</p>
-          <h1>Send NEAR.<br /><em>Catch mistakes.</em></h1>
-          <p className="lede"><strong>Check the address before you send. Cancel within 60 seconds if you make a mistake.</strong> REWIND flags possible recipient typos, helps you review the amount, and delivers automatically if you don't cancel.</p>
+          <h1>Send NEAR.<br /><em>With a safety net.</em></h1>
+          <p className="lede">REWIND checks for possible address mistakes before you approve a payment. If you notice a wrong recipient or amount after sending, you have <strong>60 seconds to cancel</strong>. Otherwise, the payment is delivered automatically.</p>
           <div className="hero-actions">
             <a className="button primary" href="#app">Send NEAR <span>→</span></a>
             <a className="button secondary" href="#how-it-works">See how it works <span>↓</span></a>
@@ -206,8 +206,8 @@ function App() {
         <div className="steps">
           <article><span>01</span><div className="step-icon">◎</div><h3>Check the address</h3><p>Check if the NEAR account exists and flag lookalikes among your saved or previously used recipients.</p></article>
           <article><span>02</span><div className="step-icon">◇</div><h3>Review and send</h3><p>Confirm the recipient and amount, then approve in your NEAR wallet. No new wallet needed.</p></article>
-          <article><span>03</span><div className="step-icon">↶</div><h3>60 seconds to correct</h3><p>Sent 10 instead of 1, or noticed the wrong address? Cancel within 60 seconds to get your NEAR back.</p></article>
-          <article><span>04</span><div className="step-icon">✓</div><h3>Delivered automatically</h3><p>If you don't cancel, REWIND sends the funds to the original recipient after the window. No second click needed.</p></article>
+          <article><span>03</span><div className="step-icon">↶</div><h3>60 seconds to cancel</h3><p>Sent 10 NEAR instead of 1? You can cancel before the 60-second window ends.</p></article>
+          <article><span>04</span><div className="step-icon">✓</div><h3>Automatic delivery</h3><p>If you leave the payment as it is, REWIND delivers it to the original recipient after the window ends.</p></article>
         </div>
       </section>
 
@@ -235,7 +235,7 @@ function App() {
             {!review.valid && <p>This account wasn't found or the address is invalid. Check it before continuing.</p>}
           </div>}
           <button className="primary form-submit" disabled={loading || (review !== null && !review.valid)}>{accountId ? (review ? 'Confirm and send NEAR' : 'Send NEAR') : 'Connect wallet to begin'} <span>→</span></button>
-          <small className="form-help">Made a mistake? You can cancel within 60 seconds after sending.</small>
+          <small className="form-help">Protected by REWIND. If you send the wrong amount or enter the wrong address, you can cancel within 60 seconds.</small>
         </form>
 
         <div className="panel inspect">
@@ -271,11 +271,11 @@ function App() {
       </section>}
 
       <section className="clarity">
-        <div className="clarity-title"><p className="section-kicker">For wallets and developers</p><h2>More than a website.</h2></div>
+        <div className="clarity-title"><p className="section-kicker">For everyday payments</p><h2>Simple to use.<br />Built for wallets.</h2></div>
         <div className="clarity-grid">
           <article><span>◎</span><h3>Address warnings, not guesses</h3><p>REWIND checks account existence and can flag addresses similar to your saved recipients. It doesn't claim to know who you meant to pay.</p></article>
           <article><span>↶</span><h3>A fixed 60-second window</h3><p>Only the sender can cancel in time. The NEAR contract enforces the deadline and original recipient.</p></article>
-          <article><span>⌘</span><h3>Built for wallet integration</h3><p>NEAR wallet developers can add REWIND using its contract and SDK. Users don't need to visit this website to benefit once a wallet integrates it.</p></article>
+          <article><span>⌘</span><h3>Works beyond this website</h3><p>Wallet developers can add recipient checks and 60-second payment protection to their own NEAR send flows with the REWIND SDK.</p></article>
         </div>
       </section>
 
@@ -295,8 +295,8 @@ function statusLabel(status: Transfer['status']) {
   const labels: Record<Transfer['status'], string> = {
     Pending: 'Protected',
     Refunding: 'Refunding',
-    RefundFailed: 'Refund failed — retry available',
-    DeliveryFailed: 'Delivery failed — refund or retry available',
+    RefundFailed: 'Refund failed. Retry available',
+    DeliveryFailed: 'Delivery failed. Refund or retry available',
     Releasing: 'Releasing',
     Cancelled: 'Refunded',
     Released: 'Delivered',
