@@ -34,6 +34,8 @@ COPY --from=build /app/dist ./dist
 COPY keeper/package.json ./keeper/package.json
 COPY keeper/index.mjs keeper/scan.mjs ./keeper/
 RUN cd keeper && npm install --omit=dev --no-audit --no-fund
-USER node
+# Railway's attached volume is root-owned. Worker needs permission to save
+# its disposable Testnet-only signing key. Web processes drop to "node" via CMD.
+USER root
 EXPOSE 4173
-CMD ["node", "server.mjs"]
+CMD ["su", "node", "-s", "/bin/sh", "-c", "node server.mjs"]
