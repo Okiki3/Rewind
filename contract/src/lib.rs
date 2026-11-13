@@ -426,7 +426,7 @@ mod tests {
         assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
         assert_eq!(
             c.get_transfer(U64(0)).unwrap().status,
-            TransferStatus::Pending
+            TransferStatus::DeliveryFailed
         );
         assert_eq!(c.get_total_reserved(), U128(ONE_NEAR));
 
