@@ -38,3 +38,21 @@ jobs:
           name: rewind-contract-wasm
           path: target/wasm32-unknown-unknown/release/rewind_escrow.wasm
           if-no-files-found: error
+
+  testnet-proof:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[testnet-proof]')
+    needs: [contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/download-artifact@v4
+        with:
+          name: rewind-contract-wasm
+          path: target/wasm32-unknown-unknown/release
+      - run: npm ci
+      - run: npm install --no-save --no-audit --no-fund near-workspaces@5.0.0
+      - run: node integration/testnet-proof.mjs
