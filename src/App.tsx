@@ -18,8 +18,26 @@ import { preflight, type Review } from '../sdk/index'
 
 const initialTx: TxState = { kind: 'idle', message: '' }
 
-const SDK_SNIPPET = ["import { preflight,  buildProtectedSendTransaction }", "  from 'https://afrolitehub.com/rewind/sdk/index.js'", "", "const review = await preflight({", "  network: 'testnet', ", "  recipient: 'winner.testnet', ", "  amountNear: '1', ", "  contacts: savedContacts,  // Supplied by the wallet", "})", "// Show warnings and ask the sender to confirm.", "if (!review.valid) throw new Error('Recipient not found')", "", "const tx = buildProtectedSendTransaction(", "  'rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet', ", "  review.recipient,  '1'", ")", "// Your existing wallet signs tx. No private keys shared."].join('\n')
-
+const SDK_SNIPPET = [
+  "import { preflight, buildProtectedSendTransaction }",
+  "  from 'https://afrolitehub.com/rewind/sdk/index.js'",
+  "",
+  "const savedContacts = [] // From the wallet address book",
+  "const review = await preflight({",
+  "  network: 'testnet',",
+  "  recipient: 'winner.testnet',",
+  "  amountNear: '1',",
+  "  contacts: savedContacts,",
+  "})",
+  "// Show review.warnings and confirm with the sender.",
+  "if (!review.valid) throw new Error('Check the recipient')",
+  "",
+  "const tx = buildProtectedSendTransaction(",
+  "  'rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet',",
+  "  review.recipient, '1'",
+  ")",
+  "// Your wallet signs this NEAR FunctionCall transaction.",
+].join('\n')
 
 function App() {
   const [accountId, setAccountId] = useState('')
