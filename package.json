@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "start": "node server.mjs",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && tsc --project sdk/tsconfig.json && node scripts/publish-sdk.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run"
@@ -16,7 +16,11 @@
     "@near-wallet-selector/my-near-wallet": "^10.1.4",
     "express": "^5.1.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "@near-wallet-selector/modal-ui": "10.1.4",
+    "@near-wallet-selector/meteor-wallet": "10.1.4",
+    "@near-wallet-selector/sender": "10.1.4",
+    "@near-wallet-selector/near-mobile-wallet": "10.1.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",

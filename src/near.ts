@@ -1,5 +1,10 @@
-import { actionCreators, setupWalletSelector, type FinalExecutionOutcome, type InjectedWallet } from '@near-wallet-selector/core'
+import { actionCreators, setupWalletSelector, type FinalExecutionOutcome } from '@near-wallet-selector/core'
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet'
+import { setupModal } from '@near-wallet-selector/modal-ui'
+import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet'
+import { setupSender } from '@near-wallet-selector/sender'
+import { setupNearMobileWallet } from '@near-wallet-selector/near-mobile-wallet'
+import '@near-wallet-selector/modal-ui/styles.css'
 import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTransaction } from '../sdk/index'
 import type { Transfer } from './types'
 
@@ -14,8 +19,15 @@ const explorerUrl = networkId === 'mainnet' ? 'https://nearblocks.io' : 'https:/
 
 const selectorPromise = setupWalletSelector({
   network: { networkId, nodeUrl, helperUrl, explorerUrl, indexerUrl: '' },
-  modules: [setupMyNearWallet({ walletUrl })],
+  modules: [
+    setupMeteorWallet(),
+    setupSender(),
+    setupNearMobileWallet(),
+    setupMyNearWallet({ walletUrl }),
+  ],
 })
+
+let walletModal: ReturnType<typeof setupModal> | null = null
 
 export async function getAccountId() {
   const selector = await selectorPromise
@@ -33,8 +45,11 @@ export function getNetworkId() {
 export async function connectWallet() {
   assertConfigured()
   const selector = await selectorPromise
-  const wallet = await selector.wallet<InjectedWallet>('my-near-wallet')
-  await wallet.signIn({ contractId })
+  // Show NEAR's wallet chooser in the dApp.
+  // Installed extension wallets ask for approval within the extension.
+  // Browser wallets such as MyNearWallet still use a redirect by design.
+  if (!walletModal) walletModal = setupModal(selector, { contractId })
+  walletModal.show()
 }
 
 export async function signOut() {

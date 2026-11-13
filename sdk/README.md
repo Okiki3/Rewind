@@ -1,4 +1,11 @@
-# REWIND third-party wallet integration
+# REWIND wallet developer integration
+
+Public SDK assets:
+
+- https://afrolitehub.com/rewind/sdk/index.js
+- https://afrolitehub.com/rewind/sdk/index.d.ts
+- https://afrolitehub.com/rewind/sdk/README.md
+
 
 REWIND is a wallet-agnostic native NEAR payment-protection contract. Your own wallet signs ordinary NEAR FunctionCall transactions; no REWIND wallet account, key custody or web login is required.
 
@@ -8,15 +15,16 @@ Compile the TS package using npm in the repository root:
 
     npx tsc --project sdk/tsconfig.json
 
-For a host wallet app, import the compiled module from sdk/dist/index.js or bundle sdk/index.ts directly. No SDK runtime dependencies are required.
+For a host wallet app, download the compiled ES module and type declarations at the public addresses below, or bundle the TypeScript source into your own app. The REWIND repository is still private, so this SDK is not yet published to npm. No runtime dependencies are required for the standalone SDK.
 
-    import { preflight, buildProtectedSendTransaction, buildCancelTransaction } from '@rewind-near/sdk'
+    import { preflight, buildProtectedSendTransaction, buildCancelTransaction } from 'https://afrolitehub.com/rewind/sdk/index.js'
 
+    const savedContacts = []; // Replace with contacts from your wallet's address book
     const review = await preflight({
       network: 'testnet', // set 'mainnet' only after a verified mainnet contract exists
       recipient: 'winner.testnet',
       amountNear: '1',
-      contacts: [{ name: 'Winner', address: 'winner.testnet' }],
+      contacts: savedContacts,
       recentRecipients: [],
     });
 
