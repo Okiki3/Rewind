@@ -13,8 +13,11 @@ Protected, cancellable native NEAR transfers. REWIND locks a deposit in a Rust e
 - Sender refund with successful callback: [`2dGcCXuYemEPU51s4ouuuxnmnyFxjkNPDng6S1aVewq5`](https://testnet.nearblocks.io/txns/2dGcCXuYemEPU51s4ouuuxnmnyFxjkNPDng6S1aVewq5)
 - Protected transfer #1 creation (0.01 NEAR): [`AQYonffz2VYEPqze9r8Ma67NN8D9YfV4QaySCqKuAEPD`](https://testnet.nearblocks.io/txns/AQYonffz2VYEPqze9r8Ma67NN8D9YfV4QaySCqKuAEPD)
 - Post-expiry recipient release with successful callback: [`7kbZeZvsusHkSb3FU1xFLpapJ1BJ5E3KhQjsueyhaKdQ`](https://testnet.nearblocks.io/txns/7kbZeZvsusHkSb3FU1xFLpapJ1BJ5E3KhQjsueyhaKdQ)
+- Protected transfer #2 creation for live failure recovery: [`2xeoiSQju1en4HViUkWuU5t6tPV7yv2gnGJZk75ULkfK`](https://testnet.nearblocks.io/txns/2xeoiSQju1en4HViUkWuU5t6tPV7yv2gnGJZk75ULkfK)
+- Failed recipient transfer with callback restoring `Pending`: [`BKGzye6kFvcnBh84MYCKwn4WSF49WSVbrHWoreWJ7N1Z`](https://testnet.nearblocks.io/txns/BKGzye6kFvcnBh84MYCKwn4WSF49WSVbrHWoreWJ7N1Z)
+- Safe retry after recreating the recipient, callback-confirmed `Released`: [`AwPct6oEDyayPm3BPMvkxb4D2UrtMChXLvErnamFC67Z`](https://testnet.nearblocks.io/txns/AwPct6oEDyayPm3BPMvkxb4D2UrtMChXLvErnamFC67Z)
 
-Onchain reads after both settlement callbacks showed transfer #0 as `Cancelled`, transfer #1 as `Released`, and `get_total_reserved` as `0`. These are genuine signed Testnet transactions, not simulations.
+Onchain reads showed transfer #0 as `Cancelled`, transfers #1 and #2 as `Released`, and `get_total_reserved` as `0`. For transfer #2, the recipient account was deliberately deleted before release: the failed promise callback restored `Pending` and preserved the full reserve, then a retry succeeded after the account was recreated. These are genuine signed Testnet transactions, not simulations.
 
 ## Contract guarantees
 
@@ -93,7 +96,7 @@ Do not modify AfroliteHub until the standalone Railway health check, root page, 
 ## Known risks and remaining work
 
 - The contract is unit-tested and exercised on Testnet, but has not received an independent audit.
-- Promise-failure recovery is covered by automated contract tests; a deliberately failing live Testnet recipient has not yet been recorded.
+- Promise-failure recovery is covered by automated tests and a real failed-then-retried Testnet settlement; more adversarial review is still recommended.
 - Per-account history stores a growing vector and should be redesigned or capped before high-volume use.
 - Wallet Selector's current NEAR cryptography dependency tree reports low-severity `elliptic` advisories; monitor upstream updates before Mainnet.
 - No Mainnet contract exists and no Mainnet funds have been spent.
