@@ -367,7 +367,7 @@ mod tests {
         let mut c = contract();
         create(&mut c, 1_000);
         testing_env!(context("bob.test.near", 1_100, ONE_NEAR).build());
-        c.create_transfer(account("alice.test.near"), U64(3_000));
+        c.create_transfer(account("alice.test.near"));
         let alice = c.get_transfers_for_account(account("alice.test.near"), None, None);
         assert_eq!(alice.len(), 2);
         assert_eq!(alice[0].id, U64(1));
