@@ -11,8 +11,8 @@ test('accepts only ed25519 public key not secret', () => {
 });
 test('funding requires exact decimal yocto; bounds prevent accidental large transfers', () => {
   assert.equal(parseFundingYocto('5'), '5000000000000000000000000');
-  assert.equal(parseFundingYocto('2.01'), '2010000000000000000000000');
-  for (const invalid of ['1.99', '10.01', '-1', '1e6', 'NaN', '', '0', '1.1234567890123456789012345']) {
+  assert.equal(parseFundingYocto('3.5'), '3500000000000000000000000');
+  for (const invalid of ['3.49', '1.99', '10.01', '-1', '1e6', 'NaN', '', '0', '1.1234567890123456789012345']) {
     assert.throws(() => parseFundingYocto(invalid));
   }
 });
