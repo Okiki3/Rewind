@@ -1,0 +1,49 @@
+name: Publish REWIND V2 AUDIT-CANDIDATE WASM (NO DEPLOYMENT)
+
+on:
+  push:
+    branches: [feat/mainnet-contract-hardening-20261114]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-verified-candidate:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish-audit-wasm]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Verify locked source tests
+        run: cargo test --manifest-path contract-mainnet/Cargo.toml --locked
+      - name: Build locked exact WASM
+        run: cargo build --manifest-path contract-mainnet/Cargo.toml --release --target wasm32-unknown-unknown --locked
+      - name: Verify binary against independently signed real Testnet contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          WASM=contract-mainnet/target/wasm32-unknown-unknown/release/rewind_escrow_mainnet_candidate.wasm
+          EXPECTED=9a15f0f7cd347566982a5dbbf7eb994037c1932bed2f22f8c1c14981975ac333
+          echo "$EXPECTED  $WASM" | sha256sum -c -
+          cp "$WASM" rewind-v2-candidate-$EXPECTED.wasm
+          sha256sum rewind-v2-candidate-$EXPECTED.wasm > SHA256SUMS
+      - name: Publish binary prerelease for audit and later owner-signed deployment
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=rewind-v2-audit-candidate-20261114
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Already published; refusing to replace immutable candidate artifact"
+            exit 1
+          fi
+          gh release create "$TAG"             rewind-v2-candidate-9a15f0f7cd347566982a5dbbf7eb994037c1932bed2f22f8c1c14981975ac333.wasm             SHA256SUMS             --target "$GITHUB_SHA"             --title 'REWIND V2 audit candidate - NOT DEPLOYED OR AUDITED'             --notes 'Experimental NEAR escrow V2 WASM. Initial deposits PAUSED by default. Real signed Testnet proof: https://github.com/Okiki3/Rewind/actions/runs/43616110769. SHA-256 9a15f0f7cd347566982a5dbbf7eb994037c1932bed2f22f8c1c14981975ac333. NOT independently audited. NOT Mainnet deployed. DO NOT send funds to contract code or enable public payments until approved. No private keys, wallet seed phrases, or Mainnet transactions used in publishing.'             --prerelease
+      - name: State clearly that Mainnet remains disabled
+        run: echo 'WASM_PUBLICLY_VERIFIABLE=YES; AUDIT=NOT_DONE; MAINNET_DEPLOYMENT=NOT_DONE'
