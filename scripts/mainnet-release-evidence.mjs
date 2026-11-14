@@ -8,8 +8,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const wasmPath = 'contract-mainnet/target/wasm32-unknown-unknown/release/rewind_escrow_mainnet_candidate.wasm';
-const expectedWasmSha256 = '0387d8dc9a975d4da82f87d418bf2d4d2f51283990f91bc76c94603165d81579';
-const expectedNearCodeHash = 'EnNHVY88UeBbQkpvRMN6bCgszfztGbh88qe49EFsNrU';
+const expectedWasmSha256 = '876b2ce33694813263a44093471cd1119e59a1ce036c0469e9802aa7e0937bb5';
+const expectedNearCodeHash = 'A7cptN7Nbks1Mi8GbPozwFvhqdEXgH5dW1cmwW3E2Huv';
 const owner = 'afrolite.near';
 const escrow = 'escrow.afrolite.near';
 const rpc = 'https://rpc.mainnet.fastnear.com';
@@ -69,8 +69,8 @@ const release = {
   escrow_already_contains_code: Boolean(escrowState && escrowState.code_hash !== absentCodeHash),
   candidate_wasm_sha256: wasmSha,
   candidate_near_code_hash: codeHash,
-  verified_testnet_contract: 'escrow.rewind-v2-mwghg491-45a9d31f.testnet',
-  verified_testnet_proof: 'https://github.com/Okiki3/Rewind/actions/runs/43603269956',
+  verified_testnet_contract: 'escrow.rewind-v2-mwglgeow-a4bd9385.testnet',
+  verified_testnet_proof: 'https://github.com/Okiki3/Rewind/actions/runs/43613229545',
   independent_security_audit_completed: false,
   user_signed_owner_control_proof_completed: false,
   owner_controlled_escrow_upgrade_keys_verified: false,
@@ -94,7 +94,7 @@ const markdown = [
   '| Owner wallet deployment approval | NOT DONE |',
   '| Mainnet real-money escrow | DISABLED |',
   '',
-  'Source: https://github.com/Okiki3/Rewind/actions/runs/43603269956',
+  'Source: https://github.com/Okiki3/Rewind/actions/runs/43613229545',
   '',
   '**NO signing or Mainnet transaction occurred. This precheck does not authorize real deposits.**',
 ].join('\n').replaceAll("'\`", "`").replaceAll("\`'", "`");
