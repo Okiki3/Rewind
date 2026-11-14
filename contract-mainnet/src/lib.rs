@@ -460,4 +460,44 @@ mod tests {
         let _ = c.release(U64(0));
         let _ = c.release(U64(0));
     }
+
+    #[test]
+    fn failed_refund_after_timely_cancel_is_never_deliverable() {
+        let mut c = setup();
+        create(&mut c, 1_000, "bob.near");
+        testing_env!(context("alice.near", 60_999, 0).build());
+        let _ = c.cancel(U64(0));
+        testing_env!(context("escrow.mainnet", 61_100, 0).build());
+        assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::RefundFailed);
+        assert!(c.get_pending_transfers(None, None).is_empty());
+        testing_env!(context("alice.near", 61_500, 0).build());
+        let _ = c.cancel(U64(0));
+        testing_env!(context("escrow.mainnet", 61_501, 0).build());
+        assert!(c.on_settle(U64(0), Ok(())));
+        assert_eq!(c.get_total_reserved(), U128(0));
+    }
+
+    #[test]
+    fn pause_does_not_lock_existing_payments() {
+        let mut c = setup();
+        create(&mut c, 1_000, "bob.near");
+        testing_env!(context("owner.near", 1_500, 0).build());
+        c.set_paused(true);
+        testing_env!(context("keeper.near", 61_000, 0).build());
+        let _ = c.release(U64(0));
+        testing_env!(context("escrow.mainnet", 61_002, 0).build());
+        assert!(c.on_settle(U64(0), Ok(())));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Released);
+    }
+
+    #[test]
+    #[should_panic(expected = "Contract needs more independent storage and operating funding")]
+    fn cannot_use_reserved_payments_to_subsidize_storage() {
+        let mut c = setup();
+        let mut low_balance = context("alice.near", 1_000, YOCTO + STORAGE_FEE);
+        low_balance.account_balance(NearToken::from_near(1));
+        testing_env!(low_balance.build());
+        c.create_transfer(account("bob.near"), U128(YOCTO));
+    }
 }
