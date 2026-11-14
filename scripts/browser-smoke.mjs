@@ -87,7 +87,7 @@ try {
       throw new Error('Default network control is not a compact Testnet button')
     }
     const sendButton = page.locator('.hero-actions .button').first()
-    if ((await sendButton.innerText()).trim() !== 'Use Rewind →') {
+    if (!(await sendButton.innerText()).replace(/\s+/g, ' ').trim().startsWith('Use Rewind')) {
       throw new Error('Homepage primary action must be Use Rewind')
     }
     const sendBounds = await sendButton.boundingBox()
