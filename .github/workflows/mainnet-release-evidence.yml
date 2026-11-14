@@ -1,0 +1,44 @@
+name: Rewind Mainnet V2 release evidence (NO DEPLOYMENT)
+
+on:
+  push:
+    branches: [feat/mainnet-contract-hardening-20261114]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  owner-release-precheck:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release-evidence]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Test exactly pinned Mainnet candidate Rust code
+        run: cargo test --manifest-path contract-mainnet/Cargo.toml --locked
+      - name: Compile pinned contract WASM
+        run: cargo build --manifest-path contract-mainnet/Cargo.toml --locked --release --target wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact deployed-Testnet bytecode and owner public Mainnet state
+        run: node scripts/mainnet-release-evidence.mjs
+      - name: Preserve reviewed candidate and public-only evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewind-v2-release-evidence-NOT-MAINNET-DEPLOYED
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            rewind-mainnet-release-precheck.json
+            rewind-mainnet-release-precheck.md
+            contract-mainnet/Cargo.lock
+            contract-mainnet/target/wasm32-unknown-unknown/release/rewind_escrow_mainnet_candidate.wasm
+      - name: No keys or Mainnet payments touched
+        run: echo 'APPROVED_FOR_AUDIT_ONLY - NO MAINNET CONTRACT CREATED, DEPLOYED OR ENABLED'
