@@ -1,0 +1,39 @@
+name: REWIND V2 REAL Testnet proof (NOT MAINNET)
+
+on:
+  push:
+    branches: [feat/mainnet-contract-hardening-20261114]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-testnet-v2:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[testnet-v2-proof]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEAR_NETWORK_ID: testnet
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Test V2 escrow against the pinned Rust dependency tree
+        run: cargo test --manifest-path contract-mainnet/Cargo.toml --locked
+      - name: Compile exact V2 WASM from the reviewed commit
+        run: cargo build --manifest-path contract-mainnet/Cargo.toml --release --target wasm32-unknown-unknown --locked
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Install NEAR client (CI only, no persistent keys)
+        run: npm install --no-save --no-audit --no-fund near-api-js@5.1.1
+      - name: Deploy new ephemeral Testnet contract; verify real 60s send, refund, keeper and failure recovery
+        run: node integration/mainnet-v2-testnet-proof.mjs
+      - name: Confirm no Mainnet credentials or RPC were used
+        run: echo "REAL_TESTNET_V2_PROOF_DONE; NO MAINNET DEPLOYMENT OR FUNDS"
