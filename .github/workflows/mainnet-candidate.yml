@@ -18,15 +18,9 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - name: Test isolated Mainnet candidate
-        run: cargo test --manifest-path contract-mainnet/Cargo.toml
-      - name: Emit generated lockfile for pinning on this review branch
-        run: |
-          echo REWIND_CANDIDATE_LOCK_BEGIN
-          base64 -w0 contract-mainnet/Cargo.lock
-          echo
-          echo REWIND_CANDIDATE_LOCK_END
+        run: cargo test --manifest-path contract-mainnet/Cargo.toml --locked
       - name: Compile Mainnet candidate WASM - do not deploy
-        run: cargo build --manifest-path contract-mainnet/Cargo.toml --release --target wasm32-unknown-unknown
+        run: cargo build --manifest-path contract-mainnet/Cargo.toml --release --target wasm32-unknown-unknown --locked
       - name: Run bounded Mainnet keeper tests
         run: |
           node --test keeper/scan-mainnet.test.mjs
