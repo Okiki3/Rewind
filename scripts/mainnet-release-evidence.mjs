@@ -69,6 +69,10 @@ const release = {
   escrow_already_contains_code: Boolean(escrowState && escrowState.code_hash !== absentCodeHash),
   candidate_wasm_sha256: wasmSha,
   candidate_near_code_hash: codeHash,
+  candidate_wasm_bytes: wasm.length,
+  // NEAR Mainnet nominal 10^19 yoctoNEAR/byte; this excludes state,
+  // access keys, contract base storage, transaction gas and operating reserve.
+  code_storage_lock_near_approx: (wasm.length / 100_000).toFixed(5),
   verified_testnet_contract: 'escrow.rewind-v2-mwglgeow-a4bd9385.testnet',
   verified_testnet_proof: 'https://github.com/Okiki3/Rewind/actions/runs/43613229545',
   independent_security_audit_completed: false,
@@ -100,6 +104,8 @@ const markdown = [
 ].join('\n').replaceAll("'\`", "`").replaceAll("\`'", "`");
 writeFileSync('rewind-mainnet-release-precheck.md', markdown + '\n');
 console.log('REWIND_V2_PINNED_WASM_VERIFIED=PASS');
+console.log('REWIND_V2_ACTUAL_WASM_BYTES=' + wasm.length);
+console.log('REWIND_V2_WASM_ONLY_STORAGE_NEAR_APPROX=' + (wasm.length / 100_000).toFixed(5));
 console.log('REWIND_MAINNET_OWNER_EXISTS=' + release.owner_exists);
 console.log('REWIND_MAINNET_PUBLIC_FULLACCESS_PRESENT=' + release.owner_has_full_access_public_key);
 console.log('REWIND_MAINNET_ESCROW_ACCOUNT_EXISTS=' + release.escrow_already_exists);
