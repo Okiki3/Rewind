@@ -368,7 +368,7 @@ h1 em { margin-top: 7px; padding-bottom: 7px; }
 .receipt-hash code { display: block; font: 11px/1.5 'DM Mono', monospace; overflow-wrap: anywhere; color: #163c2a; }
 .receipt-hash-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 10px; }
 .receipt-hash-actions button, .refresh-mini, .tracking-new button {
-  font: 650 11px inherit; border: 1px solid #94afa0; border-radius: 7px; background: #fff; padding: 8px 12px; color: #173324;
+  font-size: 11px; font-weight: 650; font-family: inherit; border: 1px solid #94afa0; border-radius: 7px; background: #fff; padding: 8px 12px; color: #173324;
 }
 .receipt-hash-actions a, .receipt-hash > a { color: #008650; font-size: 11px; font-weight: 700; overflow-wrap: anywhere; }
 .receipt-unavailable { display: block; margin-bottom: 8px; color: #6f7d72; }
