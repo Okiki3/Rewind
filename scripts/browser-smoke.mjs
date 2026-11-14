@@ -146,7 +146,7 @@ try {
     })
     await meteorMobilePage.goto(base, { waitUntil: 'domcontentloaded' })
     await meteorMobilePage.getByRole('button', { name: /connect near wallet/i }).click()
-    await meteorMobilePage.getByRole('button', { name: /sender\\.te.*disconnect/i })
+    await meteorMobilePage.getByRole('button', { name: /sender.*disconnect/i })
       .waitFor({ timeout: 12000 })
     const calledMeteor = await meteorMobilePage.evaluate(() => window.__meteorMessages)
     if (!calledMeteor.includes('ping') || !calledMeteor.includes('sign_in')) {
