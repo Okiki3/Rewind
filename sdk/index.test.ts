@@ -36,6 +36,38 @@ describe('REWIND wallet SDK', () => {
     expect(result.warnings.map((x) => x.code)).toContain('missing_account');
     expect(result.valid).toBe(false);
   });
+  it('returns only one blocking error for nonexistent accounts, even with saved contacts and an amount alert', async () => {
+    const result = await preflight({
+      recipient: 'afroliteee.testnet', amountNear: '0.1', network: 'testnet',
+      contacts: [{ address: 'afrolite.testnet' }],
+      recentRecipients: ['friend.testnet'], warnAboveNear: '0.01',
+      fetcher: missing,
+    });
+    expect(result.valid).toBe(false);
+    expect(result.verifiedAccount).toBe(false);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0].code).toBe('missing_account');
+    expect(result.warnings[0].message).toContain('afroliteee.testnet');
+    expect(result.warnings[0].message).toContain('Did you mean afrolite.testnet');
+  });
+  it('returns one clear invalid-format error with no unrelated warnings', async () => {
+    const result = await preflight({
+      recipient: 'wrong..testnet', amountNear: '0.1', network: 'testnet',
+      contacts: [{ address: 'wrong.testnet' }], fetcher: missing,
+    });
+    expect(result.valid).toBe(false);
+    expect(result.warnings).toEqual([{ code: 'invalid_address', message: 'Enter a valid NEAR account address.' }]);
+  });
+  it('keeps optional alerts for valid addresses only', async () => {
+    const result = await preflight({
+      recipient: 'al1ce.testnet', amountNear: '1', network: 'testnet',
+      contacts: [{ address: 'alice.testnet' }], warnAboveNear: '0.5',
+      fetcher: verified,
+    });
+    expect(result.valid).toBe(true);
+    expect(result.warnings.map((w) => w.code)).toEqual(['lookalike', 'large_amount']);
+    expect(result.warnings.map((w) => w.code)).not.toContain('first_time');
+  });
   it('uses supported Testnet RPC instead of deprecated near.org addresses', async () => {
     const requested: string[] = [];
     const checked = await preflight({
