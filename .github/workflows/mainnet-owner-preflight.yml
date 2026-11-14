@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   verify-owner:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[mainnet-owner-preflight]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[mainnet-owner-preflight]') || contains(github.event.head_commit.message, '[escrow-readiness]')
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Validate escrow creation payload bounds and distinct custody key rules
+        run: node --test scripts/escrow-unsigned-proposal.test.mjs
       - name: Check owner and proposed escrow on NEAR Mainnet via public RPC
         env:
           REWIND_OWNER_ACCOUNT_ID: afrolite.near
