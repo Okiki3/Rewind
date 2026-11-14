@@ -11,7 +11,7 @@ const wasmPath = 'contract-mainnet/target/wasm32-unknown-unknown/release/rewind_
 const expectedWasmSha256 = '9a15f0f7cd347566982a5dbbf7eb994037c1932bed2f22f8c1c14981975ac333';
 const expectedNearCodeHash = 'BNVC3dFi3HigCqTAtW2sxxW8vJLNrPzi3yTXDjwBdstW';
 const owner = 'afrolite.near';
-const escrow = 'escrow.afrolite.near';
+const escrow = 'afrolite-rewind-261114.near';
 const rpc = 'https://rpc.mainnet.fastnear.com';
 const absentCodeHash = '11111111111111111111111111111111';
 
