@@ -99,6 +99,7 @@ function App() {
     // Transaction creation hashes are not stored in the onchain Transfer
     // struct. Browser-side records are scoped per network, contract and wallet.
     setPaymentHashes(loadPaymentRecords(localStorage, localRecordsKey))
+    setHistory([])
     setPendingHash(null)
     setTransfer(null)
     setActiveTransferId(null)
@@ -142,8 +143,11 @@ function App() {
     return () => { alive = false; window.clearInterval(timer) }
   }, [accountId, activeTransferId])
 
+  const missingHistoryIds = history.filter((entry) => entry.sender === accountId && !paymentHashes[entry.id]).map((entry) => entry.id).join(',')
+  const explorerMinute = Math.floor(clock / 60_000)
+
   useEffect(() => {
-    if (!accountId || !history.length) return
+    if (!accountId || !missingHistoryIds) return
     const missing = history.filter((entry) => entry.sender === accountId && !paymentHashes[entry.id])
     if (!missing.length) return
     const now = Date.now()
@@ -163,7 +167,7 @@ function App() {
       })
       .catch(() => undefined)
     return () => { cancelled = true }
-  }, [accountId, history, paymentHashes, localRecordsKey])
+  }, [accountId, missingHistoryIds, explorerMinute, localRecordsKey])
 
   const loadTransfer = useCallback(async (id = lookupId) => {
     const selected = id.trim()
