@@ -584,15 +584,15 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn external_account_cannot_invoke_private_settlement_callback() {
+    #[should_panic(expected = "Transfer is not pending")]
+    fn same_sender_cannot_queue_two_refunds() {
         testing_env!(context("owner.test.near", 1_000, 0).build());
         let mut c = contract();
         create(&mut c, 1_000);
         testing_env!(context("alice.test.near", 60_999, 0).build());
         let _ = c.cancel(U64(0));
-        testing_env!(context("mallory.test.near", 61_001, 0).build());
-        let _ = c.on_settle(U64(0), Ok(()));
+        // Cancellation already marked Refunding before any async receipt.
+        let _ = c.cancel(U64(0));
     }
 
 }
