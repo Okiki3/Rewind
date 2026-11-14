@@ -1,4 +1,5 @@
-import { NearConnector, type ConnectorAction, type FinalExecutionOutcome } from '@hot-labs/near-connect'
+import { NearConnector, type ConnectorAction } from '@hot-labs/near-connect'
+import type { FinalExecutionOutcome } from './near-types'
 import { selectRewindNetwork, networkSwitchHref, canUseProtectedTransfers, type RewindNetwork } from './networks'
 import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTransaction } from '../sdk/index'
 import { buildMainnetCandidateSendTransaction } from '../sdk/mainnet-candidate'
