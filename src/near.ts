@@ -60,6 +60,7 @@ export function getSelectedWalletName(): string {
  * browsers often block that delayed popup unless its named window exists.
  */
 export function prepareWalletApproval(): WalletPopup {
+  if (getBitgetMobileAccountId(networkId)) return null
   return reserveWalletPopup(getSelectedWalletId())
 }
 
