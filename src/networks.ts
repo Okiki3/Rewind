@@ -17,7 +17,16 @@ export function networkSwitchHref(href: string, network: RewindNetwork): string 
   return url.pathname + url.search + url.hash
 }
 
-/** No Mainnet escrow transactions can be signed through this release. */
-export function canUseProtectedTransfers(network: RewindNetwork, contractId: string): boolean {
-  return network === 'testnet' && contractId.endsWith('.testnet')
+/** Mainnet must be deliberately approved, configured with a named Mainnet contract
+ * and pinned to an onchain code hash. This is only the first gate; the wallet
+ * adapter also verifies the live code hash directly before every signature. */
+export function canUseProtectedTransfers(
+  network: RewindNetwork,
+  contractId: string,
+  mainnetApproved = false,
+  expectedCodeHash = '',
+): boolean {
+  if (network === 'testnet') return contractId.endsWith('.testnet')
+  return mainnetApproved && contractId.endsWith('.near') &&
+    /^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(expectedCodeHash)
 }
