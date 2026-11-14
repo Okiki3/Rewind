@@ -4,6 +4,7 @@ import {
   connectWallet,
   createTransfer,
   explorerTx,
+  explorerAccount,
   formatNear,
   getContractId,
   getNetworkId,
@@ -61,12 +62,14 @@ function App() {
   const [paymentHashes, setPaymentHashes] = useState<Record<string, string>>({})
   const [pendingHash, setPendingHash] = useState<string | null>(null)
   const activeRef = useRef<string | null>(null)
+  const statusRef = useRef<HTMLDivElement | null>(null)
   const trackGeneration = useRef(0)
   const lastExplorerCheck = useRef<Record<string, number>>({})
   const [history, setHistory] = useState<Transfer[]>([])
   const [tx, setTx] = useState<TxState>(initialTx)
   const [loading, setLoading] = useState(false)
   const [copiedSdk, setCopiedSdk] = useState(false)
+  const [copiedHash, setCopiedHash] = useState('')
   const [clock, setClock] = useState(Date.now())
 
   const localRecordsKey = useMemo(() => recordKey(getNetworkId(), getContractId(), accountId), [accountId])
@@ -77,6 +80,7 @@ function App() {
     setLookupId(id)
     setTransfer(snapshot)
     setTrackingNewPayment(snapshot === null)
+    setCopiedHash('')
     if (accountId) {
       try { localStorage.setItem(localRecordsKey + ':last', id) } catch { /* Storage is optional. */ }
     }
@@ -173,6 +177,7 @@ function App() {
       const found = await viewTransfer(selected)
       if (generation !== trackGeneration.current) return
       if (found) {
+        setPendingHash(null)
         selectActive(selected, found)
       } else {
         setTx({ kind: 'error', message: `Transfer #${selected} was not found.` })
@@ -249,6 +254,9 @@ function App() {
         setTransfer(null)
         setTrackingNewPayment(true)
       }
+
+      // Bring the actual payment status and cancel action into view on mobile.
+      window.requestAnimationFrame(() => statusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 
       // Wallet adapters can omit both the JSON return and event logs.
       // In that case, match a unique fresh record to the exact payment.
@@ -358,7 +366,28 @@ function App() {
   }, [clock, transfer])
 
   const canCancel = accountId === transfer?.sender && ((transfer?.status === 'RefundFailed' || transfer?.status === 'DeliveryFailed') || (transfer?.status === 'Pending' && clock < Number(transfer.expires_at_ms)))
-  const canRelease = (transfer?.status === 'Pending' || transfer?.status === 'DeliveryFailed') && clock >= Number(transfer.expires_at_ms)
+  // Delivery is automatic. A manual rescue call is shown only after a delay
+  // or when an onchain payout has explicitly failed.
+  const canRelease = !!transfer && (
+    transfer.status === 'DeliveryFailed' ||
+    (transfer.status === 'Pending' && clock > Number(transfer.expires_at_ms) + 45_000)
+  )
+
+  const activeHash = transfer
+    ? paymentHashes[transfer.id] || null
+    : activeTransferId ? paymentHashes[activeTransferId] || null : pendingHash
+  const secondsToCancel = transfer?.status === 'Pending'
+    ? Math.max(0, Math.ceil((Number(transfer.expires_at_ms) - clock) / 1_000))
+    : 0
+  const timerLabel = `${String(Math.floor(secondsToCancel / 60)).padStart(2, '0')}:${String(secondsToCancel % 60).padStart(2, '0')}`
+  const protectionProgress = Math.min(100, Math.max(0, (60 - secondsToCancel) / 60 * 100))
+
+  async function copyPaymentHash(hash: string) {
+    try {
+      await navigator.clipboard.writeText(hash)
+      setCopiedHash(hash)
+    } catch { setCopiedHash('') }
+  }
 
   return (
     <main>
