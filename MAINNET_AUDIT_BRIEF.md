@@ -27,19 +27,19 @@ Attacker capabilities: arbitrary accounts can submit deposit calls, trigger perm
 4. Only the recorded sender may cancel before expiry. No third party can alter the intended recipient, refund destination or amount.
 5. Release can only begin at expiry or later. Initiating a payout moves status to `Releasing` / `Refunding` before the promise dispatch; no concurrent duplicate release/cancel is allowed.
 6. The NEAR runtime-only `#[private]` callback records `Released` / `Cancelled` **only on successful outbound receipt**. Failed recipient delivery stays `DeliveryFailed` and remains sender-refundable; failed sender refund stays `RefundFailed` and remains retryable after expiry.
-7. Pause applies only to new deposits. Existing users can still cancel/refund and keepers can still release.
+7. Fresh deployments **start paused**, and only the designated owner may unpause. Pause applies only to new deposits. Existing users can still cancel/refund and keepers can still release.
 8. Bounded account history: two append-only index lists and a cursor merge, capped at 50 returned records and max 500 skipped; no state-changing function rewrites a whole sender history.
 9. Bounded keeper scans: cursor progresses over historical ID ranges and checks recent tail each poll; no duplicate signature or premature release. A keeper outage cannot change onchain sender/recipient permissions.
 10. Every paid deposit leaves sufficient NEAR for byte-cost storage, independent operating reserve and outstanding escrow; nobody can withdraw reserved funds except through designated, callback-confirmed payout methods.
 
 ## Real-chain evidence, not just mocks
 
-- **Testnet V2 contract:** `escrow.rewind-v2-mwglgeow-a4bd9385.testnet`
-- **Onchain NEAR `code_hash`:** `A7cptN7Nbks1Mi8GbPozwFvhqdEXgH5dW1cmwW3E2Huv`
-- **WASM SHA-256:** `876b2ce33694813263a44093471cd1119e59a1ce036c0469e9802aa7e0937bb5`
-- **Passing real Testnet workflow:** https://github.com/Okiki3/Rewind/actions/runs/43613229545
-- **Initial sender refund:** https://testnet.nearblocks.io/txns/D7fpHW6vR6eNwVdJJxdgkCUAsvEwcfor1MaaWZfobBWn
-- **Failed-delivery recovery refund:** https://testnet.nearblocks.io/txns/axAM6UmXTyBx4hj3HFbDemhdn3SfRtT4SgsujeArqgE
+- **Testnet V2 contract:** `escrow.rewind-v2-mwgmk1yl-f997426b.testnet`
+- **Onchain NEAR `code_hash`:** `BNVC3dFi3HigCqTAtW2sxxW8vJLNrPzi3yTXDjwBdstW`
+- **WASM SHA-256:** `9a15f0f7cd347566982a5dbbf7eb994037c1932bed2f22f8c1c14981975ac333`
+- **Passing real Testnet workflow:** https://github.com/Okiki3/Rewind/actions/runs/43616110769
+- **Initial sender refund:** https://testnet.nearblocks.io/txns/5EeKyDtCYY88uy1xxm57xJLxCwBa4mLhijuqNqppDHYB
+- **Failed-delivery recovery refund:** https://testnet.nearblocks.io/txns/9nmoiLunU9S2PqJVPSH5QXBCQmgv54or7D8vUCPqYS1X
 - **Separate finality/reconciliation workflow:** https://github.com/Okiki3/Rewind/actions/runs/43603357365
 - Completed transfers all resolved; `get_total_reserved()` returned `0`. Tokens were **Testnet only**.
 
