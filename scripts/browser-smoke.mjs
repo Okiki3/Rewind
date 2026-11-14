@@ -246,6 +246,95 @@ try {
     console.log('AUTO_ACTIVE_TRANSFER_AND_HASH_PASS')
     await receiptPage.close()
 
+    // Simulate a wallet app's injected Bitget NEAR provider on an Android
+    // in-app browser. The official selector Bitget module returns null on
+    // mobile; an injected provider must connect in-place without redirect.
+    const bitgetPage = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
+    })
+    await bitgetPage.addInitScript(() => {
+      const state = { connected: false, signIns: 0, signed: [], contractId: '', transfer: null }
+      window.__rewindBitgetTest = state
+      window.bitkeep = { near: {
+        isSignedIn: () => state.connected,
+        getAccountId: () => state.connected ? 'afrolite.testnet' : '',
+        requestSignIn: async ({ contractId }) => {
+          state.signIns += 1
+          state.contractId = contractId
+          state.connected = true
+          return { accessKey: { publicKey: 'ed25519:mock-public-key' } }
+        },
+        signOut: async () => { state.connected = false; return true },
+        signAndSendTransaction: async ({ receiverId, actions }) => {
+          state.signed.push({ receiverId, actions })
+          const created = Date.now()
+          state.transfer = {
+            id: '43', sender: 'afrolite.testnet', recipient: 'winner.testnet',
+            amount: '100000000000000000000000', created_at_ms: String(created),
+            expires_at_ms: String(created + 60_000), settled_at_ms: null, status: 'Pending',
+          }
+          return { response: [{
+            transaction: { hash: '5RN3qgGTjnqJHNwd4PF6mtooYNdTSMDPsq4hDPBhQDXJ' },
+            status: { SuccessValue: btoa(JSON.stringify(state.transfer)) },
+            receipts_outcome: [],
+          }] }
+        },
+      } }
+    })
+    await bitgetPage.route('https://rpc.testnet.fastnear.com/**', async (route) => {
+      const request = route.request().postDataJSON()
+      if (request.method === 'query' && request.params?.request_type === 'view_account') {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({ jsonrpc: '2.0', id: request.id,
+            result: { code_hash: '11111111111111111111111111111111' } }),
+        })
+      } else if (request.method === 'query' && request.params?.request_type === 'call_function') {
+        const state = await bitgetPage.evaluate(() => window.__rewindBitgetTest)
+        const value = request.params.method_name === 'get_transfer'
+          ? state.transfer : request.params.method_name === 'get_transfers_for_account'
+            ? (state.transfer ? [state.transfer] : []) : []
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({ jsonrpc: '2.0', id: request.id,
+            result: { result: [...Buffer.from(JSON.stringify(value), 'utf8')] } }),
+        })
+      } else {
+        await route.continue()
+      }
+    })
+    await bitgetPage.goto(base, { waitUntil: 'domcontentloaded' })
+    const bitgetInitialUrl = bitgetPage.url()
+    await bitgetPage.getByRole('button', { name: /connect near wallet/i }).click()
+    await bitgetPage.getByRole('button', { name: /afrolite\.testnet.*disconnect/i }).waitFor({ timeout: 12000 })
+    const connectedState = await bitgetPage.evaluate(() => window.__rewindBitgetTest)
+    if (connectedState.signIns !== 1 ||
+      connectedState.contractId !== 'rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet' ||
+      bitgetPage.url() !== bitgetInitialUrl) {
+      throw new Error('Injected Bitget mobile connection failed or redirected externally: ' + JSON.stringify(connectedState))
+    }
+    console.log('BITGET_IN_APP_CONNECT_NO_REDIRECT_PASS')
+    await bitgetPage.getByPlaceholder('friend.testnet').fill('winner.testnet')
+    await bitgetPage.getByRole('button', { name: /^Review payment/ }).click()
+    await bitgetPage.getByRole('button', { name: /^Confirm and send NEAR/ }).waitFor({ timeout: 12000 })
+    await bitgetPage.getByRole('button', { name: /^Confirm and send NEAR/ }).click()
+    const bitgetReceipt = bitgetPage.locator('.payment-receipt')
+    await bitgetReceipt.waitFor({ timeout: 12000 })
+    if (!(await bitgetReceipt.innerText()).includes('TRANSFER #43')) {
+      throw new Error('Bitget signed transfer did not appear in status panel')
+    }
+    const signedState = await bitgetPage.evaluate(() => window.__rewindBitgetTest)
+    if (signedState.signed.length !== 1 ||
+      signedState.signed[0].receiverId !== signedState.contractId ||
+      signedState.signed[0].actions.length !== 1 ||
+      bitgetPage.url() !== bitgetInitialUrl) {
+      throw new Error('Bitget provider did not receive the protected contract call')
+    }
+    await bitgetPage.screenshot({ path: 'rewind-browser-mobile-wallet.png', fullPage: false })
+    console.log('BITGET_IN_APP_PROTECTED_SEND_PASS')
+    await bitgetPage.close()
+
     console.log('BROWSER_SMOKE_PASS')
   } finally { await browser.close() }
 } catch (error) {
