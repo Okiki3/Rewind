@@ -75,8 +75,21 @@ async function inspect() {
     query('view_account', mobileEscrowId),
     query('view_access_key_list', mobileEscrowId),
   ])
+  // Confirm whether the owner-funded mobile escrow has enough unlocked NEAR
+  // for the code storage stake (~2.20 NEAR), 0.5 NEAR operating reserve
+  // and a conservative buffer. Never print the private wallet's balance.
+  const walletEscrowStorage = BigInt(mobileEscrowState?.storage_usage ?? 0) * byteCost
+  const walletEscrowLocked = BigInt(mobileEscrowState?.locked ?? '0')
+  const walletEscrowRequiredStake = walletEscrowStorage > walletEscrowLocked
+    ? walletEscrowStorage - walletEscrowLocked : 0n
+  const walletEscrowAmount = BigInt(mobileEscrowState?.amount ?? '0')
+  const walletEscrowSpendable = walletEscrowAmount > walletEscrowRequiredStake
+    ? walletEscrowAmount - walletEscrowRequiredStake : 0n
   const results = {
     checked_network: network,
+    mobile_wallet_escrow_spendable_above_3_5_near: walletEscrowSpendable >= 35n * 10n ** 23n,
+    mobile_wallet_escrow_spendable_above_3_8_near: walletEscrowSpendable >= 38n * 10n ** 23n,
+    mobile_wallet_escrow_raw_balance_at_least_4_near: walletEscrowAmount >= 4n * 10n ** 24n,
     mobile_wallet_escrow_account_id: mobileEscrowId,
     mobile_wallet_escrow_exists: Boolean(mobileEscrowState),
     mobile_wallet_escrow_code_present: Boolean(mobileEscrowState && mobileEscrowState.code_hash !== absent),
@@ -112,6 +125,9 @@ async function inspect() {
   }
 
   console.log('REWIND_MAINNET_OWNER_PREFLIGHT=' + JSON.stringify(results))
+  console.log('REWIND_MOBILE_ESCROW_FUNDED_AT_LEAST_4_NEAR=' + results.mobile_wallet_escrow_raw_balance_at_least_4_near)
+  console.log('REWIND_MOBILE_ESCROW_SPENDABLE_AT_LEAST_3_8_NEAR=' + results.mobile_wallet_escrow_spendable_above_3_8_near)
+  console.log('REWIND_MOBILE_ESCROW_SPENDABLE_AT_LEAST_3_5_NEAR=' + results.mobile_wallet_escrow_spendable_above_3_5_near)
   console.log('REWIND_MOBILE_ESCROW_READY_TO_FUND=' +
     (results.mobile_wallet_escrow_exists &&
      results.mobile_wallet_escrow_full_access_public_key_count > 0 &&
