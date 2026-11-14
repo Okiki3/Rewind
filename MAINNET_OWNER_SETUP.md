@@ -70,7 +70,7 @@ The user selected **Meteor Wallet** to control the proposed owner account `afrol
    near account list-keys escrow.afrolite.near network-config mainnet now
    ```
 
-**Do not deploy contract code, accept real payment deposits, or unpause the contract based on these steps alone.** An independent audit and verification of the exact WASM are still required. The new hardened contract is designed to initialize with deposits **paused** by default.
+**Do not deploy contract code, accept real payment deposits, or unpause the contract based on these steps alone.** An independent audit and verification of the exact WASM are still required. The latest hardened candidate was freshly verified on Testnet with **initial deposits paused by default** (16 passing Rust tests).
 
 ## Independent audit appointment
 
@@ -89,7 +89,7 @@ An external auditor has **not** accepted an engagement. Hacken publishes a [NEAR
 7. Provision an independently controlled, funded keeper account with its own secret storage and audited monitoring. Do not put its credentials into frontend `VITE_*` configuration.
 8. Run an owner-approved, strictly capped real-payment settlement, refund and failed-recipient recovery before opening Mainnet payments to anyone else. Update exact contract address and code hash only after verification.
 
-**NO-GO now:** Mainnet V2 is still a tested candidate, not independently audited and not deployed. The latest hardened WASM is SHA-256 `876b2ce33694813263a44093471cd1119e59a1ce036c0469e9802aa7e0937bb5`, with NEAR code hash `A7cptN7Nbks1Mi8GbPozwFvhqdEXgH5dW1cmwW3E2Huv`. Onchain Testnet proof: https://github.com/Okiki3/Rewind/actions/runs/43613229545. It now rejects third-party initialisation. The live website's Mainnet mode must remain read-only. A real account creation, funding or contract deployment requires an explicit owner's wallet signature, and no such action was taken by the preflight workflow.
+**NO-GO now:** Mainnet V2 is still a tested candidate, not independently audited and not deployed. The latest hardened WASM is SHA-256 `9a15f0f7cd347566982a5dbbf7eb994037c1932bed2f22f8c1c14981975ac333`, with NEAR code hash `BNVC3dFi3HigCqTAtW2sxxW8vJLNrPzi3yTXDjwBdstW`. Onchain Testnet proof: https://github.com/Okiki3/Rewind/actions/runs/43616110769. It now rejects third-party initialisation. The live website's Mainnet mode must remain read-only. A real account creation, funding or contract deployment requires an explicit owner's wallet signature, and no such action was taken by the preflight workflow.
 
 ## Read-only commands to re-check before signing
 
