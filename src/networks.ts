@@ -1,7 +1,7 @@
 /** Runtime network selection for the one REWIND website.
  * The selected network is encoded in the URL, so reloading reconstructs the
  * NEAR Wallet Selector with the correct RPC and avoids mixing session state.
- * Mainnet remains a READ-ONLY PREVIEW until an audited escrow is available.
+ * Mainnet is read-only by default; explicit ?demo=1 allows a separate hackathon flow.
  */
 export type RewindNetwork = 'testnet' | 'mainnet'
 
@@ -17,7 +17,8 @@ export function networkSwitchHref(href: string, network: RewindNetwork): string 
   return url.pathname + url.search + url.hash
 }
 
-/** No Mainnet escrow transactions can be signed through this release. */
-export function canUseProtectedTransfers(network: RewindNetwork, contractId: string): boolean {
-  return network === 'testnet' && contractId.endsWith('.testnet')
+/** Explicit Mainnet demo opt-in is distinct from the default read-only preview. */
+export function canUseProtectedTransfers(network: RewindNetwork, contractId: string, mainnetDemo = false): boolean {
+  if (network === 'testnet') return !!contractId && contractId.endsWith('.testnet')
+  return mainnetDemo && contractId === 'afrolite-rewind-261114.near'
 }
