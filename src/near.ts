@@ -42,8 +42,9 @@ type MeteorNativeWindow = Window & {
 const meteorNativeBridge = typeof window !== 'undefined' &&
   Boolean((window as MeteorNativeWindow).__is_running_in_meteor_wallet_app__) &&
   typeof (window as MeteorNativeWindow).ReactNativeWebView?.postMessage === 'function'
-const externalMobileBrowser = typeof navigator !== 'undefined' &&
-  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && !meteorNativeBridge
+const existingMyNearSession = typeof localStorage !== 'undefined' &&
+  Boolean(localStorage.getItem('signedAccountId')) &&
+  Boolean(localStorage.getItem('near-wallet-selector:selectedWalletId')?.includes('my-near-wallet'))
 
 const selectorPromise = setupWalletSelector({
   network: { networkId, nodeUrl, helperUrl, explorerUrl, indexerUrl: '' },
@@ -56,11 +57,13 @@ const selectorPromise = setupWalletSelector({
     ...(meteorNativeBridge && networkId === 'testnet' && contractId
       ? [setupMeteorWalletApp({ contractId })] : []),
     setupNearMobileWallet(),
-    // Meteor's normal connector is web/extension-only. Do not redirect Android
-    // Chrome to wallet.meteorwallet.app when the user expects the installed app.
-    ...(!externalMobileBrowser ? [setupMeteorWallet()] : []),
+    // Keep Meteor visible on Android, iPhone/iPad and desktop. Inside Meteor's
+    // own app, connectWallet uses the native bridge before opening this modal.
+    setupMeteorWallet(),
     setupSender(),
-    setupMyNearWallet({ walletUrl }),
+    // MyNearWallet no longer accepts new wallet connections. Keep the module
+    // only long enough for an already-signed-in legacy session to disconnect.
+    ...(existingMyNearSession ? [setupMyNearWallet({ walletUrl })] : []),
   ],
 })
 

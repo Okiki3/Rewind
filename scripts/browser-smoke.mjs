@@ -167,12 +167,23 @@ try {
     })
     await externalAndroidPage.goto(base, { waitUntil: 'domcontentloaded' })
     await externalAndroidPage.getByRole('button', { name: /connect near wallet/i }).click()
-    await externalAndroidPage.getByRole('button', { name: /Copy REWIND link for Meteor/i })
-      .waitFor({ timeout: 10000 })
+    await externalAndroidPage.locator('.nws-modal').waitFor({ timeout: 10000 })
     const meteorWebInModal = await externalAndroidPage.locator('.nws-modal').getByText('Meteor Wallet', {exact:true}).count()
-    if (meteorWebInModal) throw Error('External mobile browser wrongly offers Meteor web connector')
-    console.log('METEOR_EXTERNAL_ANDROID_NO_WEB_REDIRECT_PASS')
+    if (!meteorWebInModal) throw Error('Android wallet chooser is missing Meteor Wallet')
+    console.log('METEOR_EXTERNAL_ANDROID_CHOOSER_PASS')
     await externalAndroidPage.close()
+
+    const ipadPage = await browser.newPage({
+      viewport: { width: 1024, height: 768 },
+      userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_1 like Mac OS X) AppleWebKit/605.1.15 Version/18.1 Mobile/15E148 Safari/604.1',
+    })
+    await ipadPage.goto(base, { waitUntil: 'domcontentloaded' })
+    await ipadPage.getByRole('button', { name: /connect near wallet/i }).click()
+    await ipadPage.locator('.nws-modal').waitFor({ timeout: 10000 })
+    const meteorOnIpad = await ipadPage.locator('.nws-modal').getByText('Meteor Wallet', { exact: true }).count()
+    if (!meteorOnIpad) throw Error('iPad wallet chooser is missing Meteor Wallet')
+    console.log('METEOR_IPAD_CHOOSER_PASS')
+    await ipadPage.close()
 
     // Simulate the real Send click with a connected MyNearWallet account.
     // The wallet asks an RPC for a block before it opens its approval popup;
