@@ -8,7 +8,7 @@ export const SETTLEMENT_GAS = '50000000000000';
 const YOCTO = 10n ** 24n;
 
 export type Network = 'mainnet' | 'testnet';
-export type WarningCode = 'lookalike' | 'first_time' | 'contract_account' | 'unverified' | 'missing_account' | 'large_amount';
+export type WarningCode = 'invalid_address' | 'lookalike' | 'first_time' | 'contract_account' | 'unverified' | 'missing_account' | 'large_amount';
 export interface Contact { name?: string; address: string }
 export interface Warning { code: WarningCode; message: string }
 export interface Review {
@@ -68,7 +68,7 @@ export async function preflight(options: PreflightOptions): Promise<Review> {
   const recipient = options.recipient.trim().toLowerCase();
   if (!isNearAccountId(recipient)) {
     return { recipient, valid: false, verifiedAccount: false, warnings: [
-      { code: 'unverified', message: 'This is not a valid NEAR account format.' },
+      { code: 'invalid_address', message: 'Enter a valid NEAR account address.' },
     ] };
   }
   // Parse before asking wallet to sign: reject invalid or zero-value amounts.
@@ -79,15 +79,8 @@ export async function preflight(options: PreflightOptions): Promise<Review> {
     ...(options.recentRecipients || []).map((r) => r.toLowerCase()),
   ];
   const looksLike = known.find((item) => item !== recipient && distanceAtMostTwo(item, recipient));
-  if (looksLike) {
-    warnings.push({ code: 'lookalike', message: 'Double-check: this resembles your known address ' + looksLike + '.' });
-  }
-  if (known.length > 0 && !known.includes(recipient)) {
-    warnings.push({ code: 'first_time', message: 'You have not previously used this recipient in the supplied contact/history list.' });
-  }
-  if (options.warnAboveNear && amount > BigInt(parseNearAmount(options.warnAboveNear))) {
-    warnings.push({ code: 'large_amount', message: 'This amount exceeds your configured safety threshold of ' + options.warnAboveNear + ' NEAR.' });
-  }
+  // Do not show contact or amount warnings before the blockchain has confirmed
+  // this account exists. A nonexistent recipient needs one decisive error.
   // The legacy near.org RPC endpoints were deprecated. Check with current
   // Testnet providers. Only an authoritative UNKNOWN_ACCOUNT response means
   // an account is missing; a timeout or RPC error must not be called a typo.
@@ -123,7 +116,7 @@ export async function preflight(options: PreflightOptions): Promise<Review> {
           result.error.data?.name, result.error.message,
         ].filter(Boolean).join(' ');
         if (/UNKNOWN_ACCOUNT|UNKNOWN_ACCOUNT_ID|does not exist|UnknownAccount/i.test(errorText)) {
-          warnings.push({ code: 'missing_account', message: 'This NEAR account does not exist on ' + options.network + '. Check the spelling before sending.' });
+          warnings.push({ code: 'missing_account', message: 'Transfer blocked: ' + recipient + ' does not exist on NEAR ' + (options.network === 'testnet' ? 'Testnet' : 'Mainnet') + (looksLike ? '. Did you mean ' + looksLike + '?' : '. Check the spelling.') });
           verificationCompleted = true;
           break;
         }
@@ -143,11 +136,21 @@ export async function preflight(options: PreflightOptions): Promise<Review> {
     }
   }
   if (!verificationCompleted) {
-    warnings.push({ code: 'unverified', message: 'Address verification is temporarily unavailable. Please retry the check before sending. Your payment has not been submitted.' });
+    warnings.push({ code: 'unverified', message: 'Address verification is temporarily unavailable. No transfer was submitted. Please retry.' });
+  }
+  if (verifiedAccount) {
+    if (looksLike) {
+      warnings.push({ code: 'lookalike', message: 'Possible typo: this address resembles ' + looksLike + '. Check the intended recipient.' });
+    } else if (known.length > 0 && !known.includes(recipient)) {
+      warnings.push({ code: 'first_time', message: 'First-time recipient. Confirm this is the intended wallet.' });
+    }
+    if (options.warnAboveNear && amount > BigInt(parseNearAmount(options.warnAboveNear))) {
+      warnings.push({ code: 'large_amount', message: 'This amount exceeds your configured safety threshold of ' + options.warnAboveNear + ' NEAR.' });
+    }
   }
   return {
     recipient, warnings, verifiedAccount,
-    valid: !warnings.some((warning) => warning.code === 'missing_account' || warning.code === 'unverified'),
+    valid: verifiedAccount,
   };
 }
 
