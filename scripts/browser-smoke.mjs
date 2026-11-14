@@ -335,6 +335,46 @@ try {
     console.log('BITGET_IN_APP_PROTECTED_SEND_PASS')
     await bitgetPage.close()
 
+    // If Bitget's browser doesn't inject NEAR (for example a different
+    // network is selected), do not offer an unrelated redirect login.
+    const unavailablePage = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Mobile Safari/537.36',
+    })
+    await unavailablePage.addInitScript(() => { window.bitkeep = {} })
+    await unavailablePage.goto(base, { waitUntil: 'domcontentloaded' })
+    const beforeUnavail = unavailablePage.url()
+    await unavailablePage.getByRole('button', { name: /connect near wallet/i }).click()
+    await unavailablePage.getByText('Bitget Wallet did not provide a NEAR account', { exact: false }).waitFor({ timeout: 10000 })
+    if (unavailablePage.url() !== beforeUnavail) {
+      throw new Error('Unavailable Bitget NEAR provider caused external redirect')
+    }
+    console.log('BITGET_UNAVAILABLE_NEAR_PROVIDER_GUIDANCE_PASS')
+    await unavailablePage.close()
+
+    const wrongNetworkPage = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Mobile Safari/537.36',
+    })
+    await wrongNetworkPage.addInitScript(() => {
+      window.bitkeep = { near: {
+        isSignedIn: () => true,
+        getAccountId: () => 'alice.near',
+        requestSignIn: async () => ({ accessKey: {} }),
+        signOut: async () => true,
+        signAndSendTransaction: async () => { throw new Error('Wrong network must never sign') },
+      } }
+    })
+    await wrongNetworkPage.goto(base, { waitUntil: 'domcontentloaded' })
+    const wrongNetworkStart = wrongNetworkPage.url()
+    await wrongNetworkPage.getByRole('button', { name: /connect near wallet/i }).click()
+    await wrongNetworkPage.getByText('NEAR Mainnet account', { exact: false }).waitFor({ timeout: 10000 })
+    if (wrongNetworkPage.url() !== wrongNetworkStart) {
+      throw new Error('Wrong-network Bitget connection redirected away from Testnet app')
+    }
+    console.log('BITGET_MAINNET_REJECTION_NO_REDIRECT_PASS')
+    await wrongNetworkPage.close()
+
     console.log('BROWSER_SMOKE_PASS')
   } finally { await browser.close() }
 } catch (error) {
