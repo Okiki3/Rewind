@@ -130,8 +130,25 @@ function App() {
       const hash = outcome.transaction.hash
       setTx({ kind: 'confirmed', message: 'Payment accepted onchain. Your 60-second protection period is active.', hash })
       const id = findTransferId(outcome.receipts_outcome.flatMap((receipt: { outcome: { logs: string[] } }) => receipt.outcome.logs))
-      if (id) await loadTransfer(id)
-      if (accountId) setHistory(await viewAccountTransfers(accountId))
+      // History/status RPC calls are separate from the successful wallet
+      // transaction. A later lookup outage must NEVER downgrade a confirmed
+      // onchain payment to "Not confirmed" or encourage duplicate sending.
+      if (id) {
+        setLookupId(id)
+        try {
+          const updated = await viewTransfer(id)
+          if (updated) setTransfer(updated)
+        } catch {
+          // The transaction hash remains visible in the confirmed state.
+        }
+      }
+      if (accountId) {
+        try {
+          setHistory(await viewAccountTransfers(accountId))
+        } catch {
+          // History can refresh on the next polling interval.
+        }
+      }
       setReview(null)
     } catch (error) {
       setTx({ kind: 'error', message: errorMessage(error) })
