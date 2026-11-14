@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   cancelTransfer,
   connectWallet,
   createTransfer,
   explorerTx,
+  explorerAccount,
   formatNear,
   getContractId,
   getNetworkId,
@@ -17,7 +18,12 @@ import {
   viewTransfer,
 } from './near'
 import type { Transfer, TxState } from './types'
-import { preflight, isNearAccountId, type Review } from '../sdk/index'
+import { preflight, isNearAccountId, parseNearAmount, type Review } from '../sdk/index'
+import {
+  identifyCreatedPayment, findNewTransfer, recordKey, loadPaymentRecords,
+  storePaymentHash, formatPaymentTime,
+} from './transfer-records'
+import { findHistoricalHashes } from './explorer-history'
 
 const initialTx: TxState = { kind: 'idle', message: '' }
 
@@ -51,19 +57,38 @@ function App() {
   const [threshold, setThreshold] = useState(() => localStorage.getItem('rewind-threshold-near') || '')
   const [lookupId, setLookupId] = useState('')
   const [transfer, setTransfer] = useState<Transfer | null>(null)
+  const [activeTransferId, setActiveTransferId] = useState<string | null>(null)
+  const [trackingNewPayment, setTrackingNewPayment] = useState(false)
+  const [paymentHashes, setPaymentHashes] = useState<Record<string, string>>({})
+  const [pendingHash, setPendingHash] = useState<string | null>(null)
+  const activeRef = useRef<string | null>(null)
+  const statusRef = useRef<HTMLDivElement | null>(null)
+  const trackGeneration = useRef(0)
+  const lastExplorerCheck = useRef<Record<string, number>>({})
   const [history, setHistory] = useState<Transfer[]>([])
   const [tx, setTx] = useState<TxState>(initialTx)
   const [loading, setLoading] = useState(false)
   const [copiedSdk, setCopiedSdk] = useState(false)
+  const [copiedHash, setCopiedHash] = useState('')
   const [clock, setClock] = useState(Date.now())
 
+  const localRecordsKey = useMemo(() => recordKey(getNetworkId(), getContractId(), accountId), [accountId])
+
+  const selectActive = useCallback((id: string, snapshot: Transfer | null = null) => {
+    activeRef.current = id
+    setActiveTransferId(id)
+    setLookupId(id)
+    setTransfer(snapshot)
+    setTrackingNewPayment(snapshot === null)
+    setCopiedHash('')
+    if (accountId) {
+      try { localStorage.setItem(localRecordsKey + ':last', id) } catch { /* Storage is optional. */ }
+    }
+  }, [accountId, localRecordsKey])
+
   useEffect(() => {
-    getAccountId().then((id) => {
-      setAccountId(id)
-      if (id) viewAccountTransfers(id).then(setHistory).catch(() => setHistory([]))
-    })
+    void getAccountId().then(setAccountId).catch(() => undefined)
     const timer = window.setInterval(() => setClock(Date.now()), 1_000)
-    // Update the account display when an injected wallet connects in place.
     const accountTimer = window.setInterval(() => {
       void getAccountId().then((id) => setAccountId((old) => id === old ? old : id)).catch(() => undefined)
     }, 1_500)
@@ -71,28 +96,102 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!accountId) return
-    const poll = window.setInterval(() => {
-      void viewAccountTransfers(accountId).then(setHistory).catch(() => undefined)
-      if (transfer?.id) void viewTransfer(transfer.id).then(setTransfer).catch(() => undefined)
-    }, 5_000)
-    return () => window.clearInterval(poll)
-  }, [accountId, transfer?.id])
+    // Transaction creation hashes are not stored in the onchain Transfer
+    // struct. Browser-side records are scoped per network, contract and wallet.
+    setPaymentHashes(loadPaymentRecords(localStorage, localRecordsKey))
+    setHistory([])
+    setPendingHash(null)
+    setTransfer(null)
+    setActiveTransferId(null)
+    setTrackingNewPayment(false)
+    activeRef.current = null
+    trackGeneration.current += 1
+    if (!accountId) { setHistory([]); return }
+    try {
+      const last = localStorage.getItem(localRecordsKey + ':last')
+      if (last && /^\d+$/.test(last)) {
+        activeRef.current = last
+        setActiveTransferId(last)
+        setLookupId(last)
+        setTrackingNewPayment(true)
+      }
+    } catch { /* Browser storage can be disabled. */ }
+  }, [accountId, localRecordsKey])
+
+  useEffect(() => {
+    if (!accountId && !activeTransferId) return
+    let alive = true
+    const poll = async () => {
+      if (accountId) {
+        try {
+          const latest = await viewAccountTransfers(accountId)
+          if (alive) setHistory(latest)
+        } catch { /* A transient RPC issue must not delete displayed history. */ }
+      }
+      if (activeTransferId) {
+        try {
+          const onchain = await viewTransfer(activeTransferId)
+          if (alive && activeRef.current === activeTransferId && onchain) {
+            setTransfer(onchain)
+            setTrackingNewPayment(false)
+          }
+        } catch { /* Keep the last verified state while RPC is unavailable. */ }
+      }
+    }
+    void poll()
+    const timer = window.setInterval(() => { void poll() }, 3_000)
+    return () => { alive = false; window.clearInterval(timer) }
+  }, [accountId, activeTransferId])
+
+  const missingHistoryIds = history.filter((entry) => entry.sender === accountId && !paymentHashes[entry.id]).map((entry) => entry.id).join(',')
+  const explorerMinute = Math.floor(clock / 60_000)
+
+  useEffect(() => {
+    if (!accountId || !missingHistoryIds) return
+    const missing = history.filter((entry) => entry.sender === accountId && !paymentHashes[entry.id])
+    if (!missing.length) return
+    const now = Date.now()
+    if (now - (lastExplorerCheck.current[accountId] || 0) < 60_000) return
+    lastExplorerCheck.current[accountId] = now
+    let cancelled = false
+    // Recent onchain transfer records do not carry their creation tx hash.
+    // Use a public indexer for old payments; only accept unambiguous matches.
+    void findHistoricalHashes(accountId, missing, getContractId(), getNetworkId())
+      .then((found) => {
+        if (cancelled || !Object.keys(found).length) return
+        let records = loadPaymentRecords(localStorage, localRecordsKey)
+        for (const [id, hash] of Object.entries(found)) {
+          records = storePaymentHash(localStorage, localRecordsKey, id, hash)
+        }
+        setPaymentHashes(records)
+      })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [accountId, missingHistoryIds, explorerMinute, localRecordsKey])
 
   const loadTransfer = useCallback(async (id = lookupId) => {
-    if (!id.trim()) return
+    const selected = id.trim()
+    if (!/^\d+$/.test(selected)) {
+      setTx({ kind: 'error', message: 'Enter a valid transfer number.' })
+      return
+    }
+    const generation = ++trackGeneration.current
     setLoading(true)
     try {
-      const found = await viewTransfer(id.trim())
-      setTransfer(found)
-      setLookupId(id.trim())
-      if (!found) setTx({ kind: 'error', message: `Transfer #${id} was not found.` })
+      const found = await viewTransfer(selected)
+      if (generation !== trackGeneration.current) return
+      if (found) {
+        setPendingHash(null)
+        selectActive(selected, found)
+      } else {
+        setTx({ kind: 'error', message: `Transfer #${selected} was not found.` })
+      }
     } catch (error) {
-      setTx({ kind: 'error', message: errorMessage(error) })
+      if (generation === trackGeneration.current) setTx({ kind: 'error', message: errorMessage(error) })
     } finally {
-      setLoading(false)
+      if (generation === trackGeneration.current) setLoading(false)
     }
-  }, [lookupId])
+  }, [lookupId, selectActive])
 
   async function submitCreate(event: FormEvent) {
     event.preventDefault()
@@ -117,6 +216,8 @@ function App() {
         setTx({ kind: 'error', message: 'Please review the recipient again before sending.' })
         return
       }
+      const known = new Set(history.map((entry) => entry.id))
+      const submittedAt = Date.now()
       // Open a named wallet window during the click itself. MyNearWallet
       // performs asynchronous RPC work before attempting to show its popup.
       const popup = prepareWalletApproval()
@@ -127,29 +228,76 @@ function App() {
       } finally {
         finishWalletApproval(popup)
       }
-      const hash = outcome.transaction.hash
-      setTx({ kind: 'confirmed', message: 'Payment accepted onchain. Your 60-second protection period is active.', hash })
-      const id = findTransferId(outcome.receipts_outcome.flatMap((receipt: { outcome: { logs: string[] } }) => receipt.outcome.logs))
-      // History/status RPC calls are separate from the successful wallet
-      // transaction. A later lookup outage must NEVER downgrade a confirmed
-      // onchain payment to "Not confirmed" or encourage duplicate sending.
-      if (id) {
-        setLookupId(id)
-        try {
-          const updated = await viewTransfer(id)
-          if (updated) setTransfer(updated)
-        } catch {
-          // The transaction hash remains visible in the confirmed state.
-        }
-      }
-      if (accountId) {
-        try {
-          setHistory(await viewAccountTransfers(accountId))
-        } catch {
-          // History can refresh on the next polling interval.
-        }
-      }
+      const created = identifyCreatedPayment(outcome)
+      const hash = created.hash || outcome.transaction.hash
+      // Wallet approval and contract execution are complete here. A follow-up
+      // RPC request must never hold the countdown card or undo button hostage.
+      setTx({ kind: 'confirmed', message: 'Payment accepted onchain. The 60-second protection window is active.', hash })
+      setPendingHash(hash)
       setReview(null)
+      const generation = ++trackGeneration.current
+      const sentRecipient = recipient.trim().toLowerCase()
+      const sentYocto = parseNearAmount(amount)
+
+      const showNewPayment = (id: string, record: Transfer | null) => {
+        if (generation !== trackGeneration.current) return
+        selectActive(id, record)
+        if (hash) {
+          try {
+            setPaymentHashes(storePaymentHash(localStorage, localRecordsKey, id, hash))
+          } catch { /* The transaction remains confirmed even without local storage. */ }
+        }
+        if (record) setHistory((items) => [record, ...items.filter((entry) => entry.id !== id)])
+        setPendingHash(null)
+      }
+
+      if (created.id) showNewPayment(created.id, created.transfer)
+      else {
+        activeRef.current = null
+        setActiveTransferId(null)
+        setTransfer(null)
+        setTrackingNewPayment(true)
+      }
+
+      // Bring the actual payment status and cancel action into view on mobile.
+      window.requestAnimationFrame(() => statusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+
+      // Wallet adapters can omit both the JSON return and event logs.
+      // In that case, match a unique fresh record to the exact payment.
+      // Never guess the transfer number or re-submit the transaction.
+      void (async () => {
+        if (created.id && created.transfer) return
+        for (let attempt = 0; attempt < 8; attempt++) {
+          if (generation !== trackGeneration.current) return
+          try {
+            if (created.id) {
+              const current = await viewTransfer(created.id)
+              if (current && generation === trackGeneration.current) {
+                showNewPayment(created.id, current)
+                return
+              }
+            } else {
+              const latest = await viewAccountTransfers(accountId)
+              if (generation !== trackGeneration.current) return
+              setHistory(latest)
+              const matched = findNewTransfer(latest, known, accountId, sentRecipient, sentYocto, submittedAt)
+              if (matched) {
+                showNewPayment(matched.id, matched)
+                return
+              }
+            }
+          } catch { /* Network indexing can be delayed; continue read-only lookups. */ }
+          await new Promise((resolve) => window.setTimeout(resolve, 1_000))
+        }
+        if (generation === trackGeneration.current && !created.id) {
+          setTrackingNewPayment(false)
+          setTx({
+            kind: 'confirmed',
+            message: 'Payment confirmed, but the transfer ID is not available yet. Check your payment hash on the explorer; do not resend.',
+            hash,
+          })
+        }
+      })()
     } catch (error) {
       setTx({ kind: 'error', message: errorMessage(error) })
     } finally {
@@ -169,44 +317,48 @@ function App() {
   async function settle(action: 'cancel' | 'release') {
     if (!transfer) return
     if (!accountId) return connectWallet()
+    const transferId = transfer.id
     setLoading(true)
+    let outcome: Awaited<ReturnType<typeof cancelTransfer>>
     try {
-      // Same popup reservation for cancellation and manual release.
       const popup = prepareWalletApproval()
-      let outcome: Awaited<ReturnType<typeof cancelTransfer>>
       try {
         setTx({
           kind: 'wallet',
           message: action === 'cancel'
-            ? 'Opening ' + getSelectedWalletName() + ' for refund approval. Your refund is not final until confirmed onchain.'
-            : 'Opening ' + getSelectedWalletName() + ' for release approval.',
+            ? 'Review the cancellation in your NEAR wallet. A refund is final only when confirmed onchain.'
+            : 'Review the delivery request in your NEAR wallet.',
         })
-        outcome = action === 'cancel'
-          ? await cancelTransfer(transfer.id)
-          : await releaseTransfer(transfer.id)
+        outcome = action === 'cancel' ? await cancelTransfer(transferId) : await releaseTransfer(transferId)
       } finally {
         finishWalletApproval(popup)
       }
-      const current = await viewTransfer(transfer.id)
-      setTransfer(current)
-      if (current && current.status === (action === 'cancel' ? 'Cancelled' : 'Released')) {
+    } catch (error) {
+      setTx({ kind: 'error', message: errorMessage(error) })
+      setLoading(false)
+      return
+    }
+    const hash = outcome.transaction.hash
+    setTx({ kind: 'submitted', message: 'Wallet transaction submitted. Checking the blockchain settlement result.', hash })
+    try {
+      const current = await viewTransfer(transferId)
+      if (current && activeRef.current === transferId) setTransfer(current)
+      if (current?.status === (action === 'cancel' ? 'Cancelled' : 'Released')) {
         setTx({
           kind: 'confirmed',
           message: action === 'cancel' ? 'Refund confirmed onchain.' : 'Delivery confirmed onchain.',
-          hash: outcome.transaction.hash,
+          hash,
         })
       } else if (current?.status === 'RefundFailed' || current?.status === 'DeliveryFailed') {
-        setTx({ kind: 'error', message: 'Payout failed onchain. Funds remain claimable in REWIND; use the available refund or retry action.', hash: outcome.transaction.hash })
-      } else {
-        setTx({ kind: 'submitted', message: 'Settlement is being verified. Check the onchain status.', hash: outcome.transaction.hash })
+        setTx({ kind: 'error', message: 'The settlement failed onchain. Use the refund or retry option if available.', hash })
       }
-      setHistory(await viewAccountTransfers(accountId))
-    } catch (error) {
-      setTx({ kind: 'error', message: errorMessage(error) })
-      await loadTransfer(transfer.id)
-    } finally {
-      setLoading(false)
+    } catch {
+      // A read-only RPC outage after wallet submission is NOT a failed
+      // transaction. Preserve the hash and allow background polling to refresh.
+      setTx({ kind: 'submitted', message: 'Request submitted. The network status is temporarily unavailable. Check the transaction hash before retrying.', hash })
     }
+    try { setHistory(await viewAccountTransfers(accountId)) } catch { /* Polling will retry. */ }
+    setLoading(false)
   }
 
   const remaining = useMemo(() => {
@@ -218,7 +370,28 @@ function App() {
   }, [clock, transfer])
 
   const canCancel = accountId === transfer?.sender && ((transfer?.status === 'RefundFailed' || transfer?.status === 'DeliveryFailed') || (transfer?.status === 'Pending' && clock < Number(transfer.expires_at_ms)))
-  const canRelease = (transfer?.status === 'Pending' || transfer?.status === 'DeliveryFailed') && clock >= Number(transfer.expires_at_ms)
+  // Delivery is automatic. A manual rescue call is shown only after a delay
+  // or when an onchain payout has explicitly failed.
+  const canRelease = !!transfer && (
+    transfer.status === 'DeliveryFailed' ||
+    (transfer.status === 'Pending' && clock > Number(transfer.expires_at_ms) + 45_000)
+  )
+
+  const activeHash = transfer
+    ? paymentHashes[transfer.id] || null
+    : activeTransferId ? paymentHashes[activeTransferId] || null : pendingHash
+  const secondsToCancel = transfer?.status === 'Pending'
+    ? Math.max(0, Math.ceil((Number(transfer.expires_at_ms) - clock) / 1_000))
+    : 0
+  const timerLabel = `${String(Math.floor(secondsToCancel / 60)).padStart(2, '0')}:${String(secondsToCancel % 60).padStart(2, '0')}`
+  const protectionProgress = Math.min(100, Math.max(0, (60 - secondsToCancel) / 60 * 100))
+
+  async function copyPaymentHash(hash: string) {
+    try {
+      await navigator.clipboard.writeText(hash)
+      setCopiedHash(hash)
+    } catch { setCopiedHash('') }
+  }
 
   return (
     <main>
@@ -314,38 +487,101 @@ function App() {
           <small className="form-help">Protected by REWIND. If you send the wrong amount or enter the wrong address, you can cancel within 60 seconds.</small>
         </form>
 
-        <div className="panel inspect">
-          <div className="panel-title"><span>TRACK</span><div><h2>Transfer status</h2><p>See your payment's progress on NEAR.</p></div></div>
+        <div className="panel inspect" ref={statusRef} id="transfer-status">
+          <div className="panel-title"><span>TRACK</span><div><h2>Transfer status</h2><p>Updates automatically after your payment. Verified on NEAR.</p></div></div>
           <form className="search" onSubmit={(e) => { e.preventDefault(); void loadTransfer() }}>
             <input aria-label="Transfer ID" inputMode="numeric" value={lookupId} onChange={(e) => setLookupId(e.target.value)} placeholder="Enter transfer ID" />
             <button disabled={loading}>Check status</button>
           </form>
           {transfer ? (
-            <article className="card">
+            <article className="card payment-receipt" aria-label={`Details for transfer ${transfer.id}`}>
               <div className="card-head"><span>TRANSFER #{transfer.id}</span><strong data-status={transfer.status}>{statusLabel(transfer.status, clock >= Number(transfer.expires_at_ms))}</strong></div>
-              <div className="amount">{formatNear(transfer.amount)} <small>NEAR</small></div>
-              <dl>
-                <div><dt>Sender</dt><dd>{transfer.sender}</dd></div>
-                <div><dt>Recipient</dt><dd>{transfer.recipient}</dd></div>
-                <div><dt>Protection</dt><dd>{transfer.status === 'Released' ? 'Delivered to recipient' : transfer.status === 'Cancelled' ? 'Refunded to sender' : remaining}</dd></div>
+              <div className="receipt-amount">{formatNear(transfer.amount)} <small>NEAR</small></div>
+              {transfer.status === 'Pending' && secondsToCancel > 0 && (
+                <div className="receipt-clock" role="timer" aria-label="Time remaining to cancel">
+                  <div className="receipt-clock-label"><span>Time left to cancel</span><strong>{timerLabel}</strong></div>
+                  <div className="receipt-progress-track" aria-hidden="true"><div style={{ width: `${protectionProgress}%` }} /></div>
+                  <small>Only the sender can cancel before the 60-second deadline.</small>
+                </div>
+              )}
+              {transfer.status === 'Pending' && secondsToCancel === 0 && (
+                <p className="receipt-notice">The cancellation window has ended. Automatic delivery is pending network confirmation.</p>
+              )}
+              {transfer.status === 'Released' && <p className="receipt-success">Delivered to the intended recipient. This payment can no longer be cancelled.</p>}
+              {transfer.status === 'Cancelled' && <p className="receipt-success">Cancellation complete. The sender's NEAR has been refunded.</p>}
+              {['Refunding', 'Releasing'].includes(transfer.status) && <p className="receipt-notice">The blockchain is processing settlement. Waiting for contract confirmation.</p>}
+              {transfer.status === 'DeliveryFailed' && <p className="receipt-notice">Delivery failed onchain. The sender can request a refund or retry delivery.</p>}
+              {transfer.status === 'RefundFailed' && <p className="receipt-notice">Refund failed onchain. The sender can retry the refund.</p>}
+              <dl className="receipt-details">
+                <div><dt>From</dt><dd>{transfer.sender}</dd></div>
+                <div><dt>To</dt><dd>{transfer.recipient}</dd></div>
+                <div><dt>Network</dt><dd>NEAR {getNetworkId() === 'testnet' ? 'Testnet' : 'Mainnet'}</dd></div>
+                <div><dt>Created</dt><dd>{formatPaymentTime(transfer.created_at_ms)}</dd></div>
+                <div><dt>Cancel deadline</dt><dd>{formatPaymentTime(transfer.expires_at_ms)}</dd></div>
+                <div><dt>Completed</dt><dd>{formatPaymentTime(transfer.settled_at_ms)}</dd></div>
+                <div><dt>Transaction hash</dt><dd className="receipt-hash">
+                  {activeHash ? <>
+                    <code title={activeHash}>{activeHash}</code>
+                    <div className="receipt-hash-actions">
+                      <button type="button" onClick={() => void copyPaymentHash(activeHash)}>{copiedHash === activeHash ? 'Copied' : 'Copy hash'}</button>
+                      <a href={explorerTx(activeHash)} target="_blank" rel="noreferrer">View transaction <span aria-hidden="true">↗</span></a>
+                    </div>
+                  </> : <>
+                    <span className="receipt-unavailable">Hash not yet indexed for this transfer.</span>
+                    <a href={explorerAccount(transfer.sender)} target="_blank" rel="noreferrer">Find it in sender activity <span aria-hidden="true">↗</span></a>
+                  </>}
+                </dd></div>
               </dl>
-              {['Refunding', 'Releasing'].includes(transfer.status) && <p className="pending">Settlement is processing. The blockchain callback will confirm the result.</p>}
-              {transfer.status === 'Pending' && clock >= Number(transfer.expires_at_ms) && <p className="pending">The 60-second protection period has ended. Automatic delivery is being requested. Refresh the status to see when it completes.</p>}
-              {transfer.status === 'DeliveryFailed' && <p className="pending">Automatic delivery failed. The sender can request a refund, or delivery can be retried.</p>}
-              <div className="actions">
-                {canCancel && <button onClick={() => settle('cancel')} disabled={loading}>{transfer.status === 'DeliveryFailed' || transfer.status === 'RefundFailed' ? 'Request refund' : 'Cancel transfer'}</button>}
-                {canRelease && <button onClick={() => settle('release')} disabled={loading}>{transfer.status === 'DeliveryFailed' ? 'Retry delivery' : 'Release now'}</button>}
+              <div className="receipt-bottom">
+                {(canCancel || canRelease) && <div className="actions">
+                  {canCancel && <button type="button" onClick={() => void settle('cancel')} disabled={loading}>
+                    {transfer.status === 'DeliveryFailed' || transfer.status === 'RefundFailed' ? 'Request refund' : 'Cancel transfer'}
+                  </button>}
+                  {canRelease && <button type="button" onClick={() => void settle('release')} disabled={loading}>
+                    {transfer.status === 'DeliveryFailed' ? 'Retry delivery' : 'Delivery delayed? Retry'}
+                  </button>}
+                </div>}
+                <button type="button" className="refresh-mini" disabled={loading} onClick={() => void loadTransfer(transfer.id)}>Refresh status</button>
               </div>
             </article>
-          ) : <div className="empty"><span>⌁</span><p>Track a payment</p><small>Enter its transfer ID to check the status or cancel while eligible.</small></div>}
+          ) : trackingNewPayment || activeTransferId || pendingHash ? (
+            <div className="tracking-new" role="status">
+              <span className="tracking-dot" />
+              <strong>{activeTransferId ? `Loading transfer #${activeTransferId}` : 'Finding your new transfer'}</strong>
+              <p>{pendingHash ? 'Your wallet transaction was confirmed. REWIND is locating the contract record. Do not send again.' : 'Reading the latest status from the blockchain.'}</p>
+              {(pendingHash || (activeTransferId && paymentHashes[activeTransferId])) && (
+                <a href={explorerTx(pendingHash || paymentHashes[activeTransferId!]!)} target="_blank" rel="noreferrer">View confirmed transaction <span aria-hidden="true">↗</span></a>
+              )}
+              {activeTransferId && <button type="button" onClick={() => void loadTransfer(activeTransferId)}>Retry status lookup</button>}
+            </div>
+          ) : (
+            <div className="empty"><span>⌁</span><p>Your payment will appear here</p><small>Send NEAR using REWIND, or enter an existing transfer ID. The countdown starts as soon as the contract accepts your payment.</small></div>
+          )}
         </div>
       </section>
 
       {accountId && <section className="history">
-        <div className="panel-title"><span>HISTORY</span><div><h2>Recent transfers</h2><p>Payments linked to your connected wallet.</p></div></div>
-        {history.length ? <div className="history-grid">{history.map((item) => <button key={item.id} onClick={() => void loadTransfer(item.id)}>
-          <span>#{item.id}</span><strong>{formatNear(item.amount)} NEAR</strong><em>{statusLabel(item.status, clock >= Number(item.expires_at_ms))}</em><small>{item.sender === accountId ? `to ${short(item.recipient)}` : `from ${short(item.sender)}`}</small>
-        </button>)}</div> : <p className="history-empty">No REWIND transfers found for this account.</p>}
+        <div className="history-heading">
+          <div className="panel-title"><span>HISTORY</span><div><h2>Recent transfers</h2><p>Actual onchain transfers for your connected wallet. Select one to view its full status.</p></div></div>
+          <small>New payment hashes are saved in this browser. Older hashes are matched against public NEAR explorer records when available.</small>
+        </div>
+        {history.length ? <div className="history-grid">{history.map((item) => {
+          const hash = paymentHashes[item.id]
+          return <article className="history-entry" key={item.id} data-selected={activeTransferId === item.id}>
+            <button type="button" className="history-select" onClick={() => { setPendingHash(null); selectActive(item.id, item); void loadTransfer(item.id) }}>
+              <span className="history-top"><span>TRANSFER #{item.id}</span><em>{statusLabel(item.status, clock >= Number(item.expires_at_ms))}</em></span>
+              <strong>{formatNear(item.amount)} <small>NEAR</small></strong>
+              <span>{item.sender === accountId ? 'To ' + item.recipient : 'From ' + item.sender}</span>
+              <small>{formatPaymentTime(item.created_at_ms)}</small>
+            </button>
+            <div className="history-hash">
+              <span>Transaction hash</span>
+              {hash
+                ? <a href={explorerTx(hash)} title={hash} target="_blank" rel="noreferrer">{short(hash)} <span aria-hidden="true">↗</span></a>
+                : <a href={explorerAccount(item.sender)} target="_blank" rel="noreferrer">Find on explorer <span aria-hidden="true">↗</span></a>}
+            </div>
+          </article>
+        })}</div> : <p className="history-empty">No REWIND transfers found for this account.</p>}
       </section>}
 
       <section className="clarity">

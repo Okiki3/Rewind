@@ -164,6 +164,10 @@ export function explorerTx(hash: string) {
   return `${explorerUrl}/txns/${hash}`
 }
 
+export function explorerAccount(accountId: string) {
+  return `${explorerUrl}/address/${encodeURIComponent(accountId)}`
+}
+
 function assertConfigured() {
   if (!contractId) throw new Error('VITE_NEAR_CONTRACT_ID is not configured')
 }

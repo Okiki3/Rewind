@@ -142,6 +142,69 @@ try {
     await approvalPopup.close()
     await sendPage.close()
 
+    // Verify active payment status appears by itself on reload, not only
+    // after a user clicks Recent transfers. Use a mocked READ-ONLY RPC.
+    const receiptPage = await browser.newPage({ viewport: { width: 1320, height: 850 } })
+    await receiptPage.goto(base, { waitUntil: 'domcontentloaded' })
+    const contract = 'rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet'
+    const account = 'sender.testnet'
+    const hash = '5RN3qgGTjnqJHNwd4PF6mtooYNdTSMDPsq4hDPBhQDXJ'
+    const start = Date.now() - 4_000
+    const testTransfer = {
+      id:'8',sender:account,recipient:'winner.testnet',
+      amount:'100000000000000000000000',
+      created_at_ms:String(start),expires_at_ms:String(start+60000),
+      settled_at_ms:null,status:'Pending',
+    }
+    await receiptPage.evaluate(({ contract, account, hash }) => {
+      localStorage.setItem('near-wallet-selector:selectedWalletId', JSON.stringify('my-near-wallet'))
+      localStorage.setItem('near-wallet-selector:contract', JSON.stringify({ contractId:contract, methodNames:[] }))
+      localStorage.setItem('signedAccountId',account)
+      const key = ['rewind','payments','testnet',contract,account].join(':')
+      localStorage.setItem(key,JSON.stringify({'8':hash}))
+      localStorage.setItem(key+':last','8')
+    }, { contract, account, hash })
+    await receiptPage.route('https://rpc.testnet.fastnear.com/**', async (route) => {
+      const request=route.request().postDataJSON()
+      if (request.method === 'query' && request.params?.request_type === 'call_function') {
+        const method = request.params.method_name
+        const value = method === 'get_transfer' ? testTransfer :
+          method === 'get_transfers_for_account' ? [testTransfer] : []
+        const encoded = [...Buffer.from(JSON.stringify(value),'utf8')]
+        await route.fulfill({
+          status:200,contentType:'application/json',
+          body:JSON.stringify({jsonrpc:'2.0',id:request.id,result:{result:encoded}}),
+        })
+        return
+      }
+      await route.continue()
+    })
+    await receiptPage.reload({ waitUntil:'domcontentloaded' })
+    const receiptCard=receiptPage.locator('.payment-receipt')
+    await receiptCard.waitFor({timeout:15000})
+    if (!(await receiptCard.innerText()).includes('TRANSFER #8')) {
+      throw new Error('Last successful payment was not automatically selected')
+    }
+    const clockText=await receiptCard.locator('.receipt-clock').innerText()
+    if (!clockText.includes('Time left to cancel') || !clockText.includes(':')) {
+      throw new Error('The active transfer countdown was not visible')
+    }
+    const hashText=await receiptCard.locator('.receipt-hash code').innerText()
+    if (hashText !== hash) throw new Error('Transaction hash missing from live receipt')
+    const link=receiptCard.getByRole('link',{name:/View transaction/i})
+    if (!(await link.getAttribute('href')).endsWith('/txns/'+hash)) {
+      throw new Error('Explorer link does not point at the confirmed NEAR hash')
+    }
+    const recent=receiptPage.locator('.history-entry')
+    await recent.first().waitFor({timeout:10000})
+    const historyLink=recent.first().locator('.history-hash a')
+    if (!(await historyLink.getAttribute('href')).endsWith('/txns/'+hash)) {
+      throw new Error('Transaction hash missing from Recent transfers')
+    }
+    await receiptPage.screenshot({path:'rewind-browser-receipt.png',fullPage:false})
+    console.log('AUTO_ACTIVE_TRANSFER_AND_HASH_PASS')
+    await receiptPage.close()
+
     console.log('BROWSER_SMOKE_PASS')
   } finally { await browser.close() }
 } catch (error) {
