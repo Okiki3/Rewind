@@ -9,7 +9,7 @@ import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTran
 import type { Transfer } from './types'
 import { reserveWalletPopup, closeReservedWalletPopup, type WalletPopup } from './wallet-popup'
 import {
-  hasBitgetInAppWallet, getBitgetMobileAccountId, connectBitgetMobile,
+  hasBitgetInAppWallet, isBitgetInAppBrowser, getBitgetMobileAccountId, connectBitgetMobile,
   disconnectBitgetMobile, signWithBitgetMobile,
 } from './bitget-injected'
 
@@ -91,6 +91,9 @@ export async function connectWallet() {
   if (hasBitgetInAppWallet()) {
     await connectBitgetMobile(contractId, networkId)
     return
+  }
+  if (isBitgetInAppBrowser()) {
+    throw new Error('Bitget Wallet did not provide a NEAR account in this browser. Select a NEAR account in Bitget and reload, or open REWIND with a wallet that supports NEAR Testnet. The REWIND demo does not accept Mainnet funds.')
   }
   const selector = await selectorPromise
   // Other wallets still use the official NEAR chooser, including desktop
