@@ -195,7 +195,15 @@ function App() {
 
   async function submitCreate(event: FormEvent) {
     event.preventDefault()
-    if (!accountId) return void connectWallet()
+    if (!accountId) {
+      try {
+        await connectWallet()
+        setAccountId(await getAccountId())
+      } catch (error) {
+        setTx({ kind: 'error', message: errorMessage(error) })
+      }
+      return
+    }
     setLoading(true)
     try {
       if (!review) {
