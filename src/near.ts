@@ -1,5 +1,6 @@
 import { actionCreators, setupWalletSelector, type FinalExecutionOutcome } from '@near-wallet-selector/core'
 import { setupModal } from '@near-wallet-selector/modal-ui'
+import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet'
 import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet'
 import { setupSender } from '@near-wallet-selector/sender'
 import { setupNearMobileWallet } from '@near-wallet-selector/near-mobile-wallet'
@@ -26,6 +27,8 @@ const contractId = networkId === 'testnet' ? (import.meta.env.VITE_NEAR_CONTRACT
 const nodeUrl = networkId === 'mainnet'
   ? 'https://rpc.mainnet.fastnear.com'
   : (import.meta.env.VITE_NEAR_NODE_URL || 'https://rpc.testnet.fastnear.com')
+// Legacy MyNearWallet sessions are retained for existing users; new app connections are retired.
+const walletUrl = networkId === 'mainnet' ? 'https://app.mynearwallet.com' : 'https://testnet.mynearwallet.com'
 const helperUrl = networkId === 'mainnet'
   ? 'https://helper.mainnet.near.org'
   : (import.meta.env.VITE_NEAR_HELPER_URL || 'https://helper.testnet.near.org')
@@ -42,6 +45,7 @@ const selectorPromise = setupWalletSelector({
     setupNearMobileWallet(),
     setupMeteorWallet(),
     setupSender(),
+    setupMyNearWallet({ walletUrl }),
   ],
 })
 
