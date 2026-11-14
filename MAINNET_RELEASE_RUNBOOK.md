@@ -3,7 +3,7 @@
 **Status (14 Nov 2026): NOT APPROVED FOR REAL FUNDS.**
 This is a separate contract **candidate**, not a migration of the working Testnet escrow. Never upgrade the existing Testnet account with this Rust state layout.
 
-**Current mobile escrow candidate:** `afrolite-rewind-261114.near` exists on Mainnet with one FullAccess public key and no code. It was created in Meteor on Android. The previous `escrow.afrolite.near` subaccount plan is replaced. This does not constitute signing custody proof. `afrolite.near` remains the owner-only pause account. The next action is user-authorized funding of the existing escrow account, not CreateAccount.
+**Current mobile escrow candidate:** `afrolite-rewind-261114.near` exists on Mainnet with one FullAccess public key and no code. It was created in Meteor on Android. The previous `escrow.afrolite.near` subaccount plan is replaced. This does not constitute signing custody proof. `afrolite.near` remains the owner-only pause account. **Funding confirmed** by [read-only NEAR Mainnet check](https://github.com/Okiki3/Rewind/actions/runs/43621207990): at least 4 NEAR raw balance and above 3.8 NEAR estimated spendable in the existing escrow account. No additional funding or CreateAccount action needed. Next: secure owner-authorised WASM deployment (initial deposits PAUSED) and independent security review.
 
 ## Owner account selected and publicly verified
 
