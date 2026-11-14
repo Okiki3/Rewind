@@ -78,6 +78,13 @@ pub struct Contract {
 impl Contract {
     #[init]
     pub fn new(owner_id: AccountId) -> Self {
+        // Only an authenticated transaction signed by the newly created
+        // contract account may select its admin. Otherwise anyone could
+        // front-run deployment and initialize themselves as owner.
+        require!(
+            env::predecessor_account_id() == env::current_account_id(),
+            "Only contract account may initialize"
+        );
         require!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
@@ -347,13 +354,26 @@ mod tests {
     }
 
     fn setup() -> Contract {
-        testing_env!(context("owner.near", 1_000, 0).build());
+        testing_env!(context("escrow.mainnet", 1_000, 0).build());
         Contract::new(account("owner.near"))
     }
 
     fn create(c: &mut Contract, ms: u64, recipient: &str) {
         testing_env!(context("alice.near", ms, YOCTO + STORAGE_FEE).build());
         c.create_transfer(account(recipient), U128(YOCTO));
+    }
+
+    #[test]
+    #[should_panic(expected = "Only contract account may initialize")]
+    fn third_party_cannot_front_run_initialization() {
+        testing_env!(context("attacker.near", 1_000, 0).build());
+        Contract::new(account("attacker.near"));
+    }
+
+    #[test]
+    fn contract_account_can_initialize_owner() {
+        let c = setup();
+        assert_eq!(c.get_owner(), account("owner.near"));
     }
 
     #[test]
