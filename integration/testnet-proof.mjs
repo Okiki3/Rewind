@@ -83,6 +83,20 @@ async function main() {
   assert.equal(first.amount, tiny.toString());
   assert.equal(BigInt(first.expires_at_ms) - BigInt(first.created_at_ms), 60_000n);
 
+  // A direct external transaction must NOT be able to fake the contract's
+  // private settlement callback. Rust unit calls bypass the generated
+  // NEAR entrypoint, so this assertion belongs in a real Testnet proof.
+  let privateCallbackRejected = false;
+  try {
+    await send('on_settle', { transfer_id: '0' });
+  } catch (error) {
+    privateCallbackRejected = /private|predecessor|current account/i.test(String(error));
+  }
+  assert.ok(privateCallbackRejected, 'External on_settle must reject specifically for private access');
+  assert.equal((await view('get_transfer', { transfer_id: '0' })).status, 'Pending');
+  console.log('EXTERNAL_PRIVATE_CALLBACK=DENIED');
+
+
   const cancelled = await send('cancel', { transfer_id: '0' });
   first = await view('get_transfer', { transfer_id: '0' });
   assert.equal(first.status, 'Cancelled', 'Refund must be confirmed onchain');
