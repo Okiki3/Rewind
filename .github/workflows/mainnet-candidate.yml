@@ -21,9 +21,19 @@ jobs:
         run: cargo test --manifest-path contract-mainnet/Cargo.toml
       - name: Compile Mainnet candidate WASM - do not deploy
         run: cargo build --manifest-path contract-mainnet/Cargo.toml --release --target wasm32-unknown-unknown
-      - name: Check for a generated lockfile to pin before production
+      - name: Run bounded Mainnet keeper tests
         run: |
-          if test -f contract-mainnet/Cargo.lock; then
-            echo "Candidate lockfile generated during CI; MUST be committed and audited before any release."
-          fi
+          node --test keeper/scan-mainnet.test.mjs
+          node --check keeper/index-mainnet.mjs
+      - name: Preserve compiled WASM and exact lockfile for independent review
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewind-mainnet-candidate-wasm-lock
+          path: |
+            contract-mainnet/target/wasm32-unknown-unknown/release/rewind_escrow_mainnet_candidate.wasm
+            contract-mainnet/Cargo.lock
+          if-no-files-found: error
+      - name: Explicitly block any deploy from this workflow
+        run: |
           echo "MAINNET_CANDIDATE_COMPILED; NO ONCHAIN DEPLOYMENT"
+          echo "WASM and Cargo.lock are available for release review."
