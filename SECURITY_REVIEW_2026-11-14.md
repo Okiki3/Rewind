@@ -12,7 +12,7 @@
 - Account permission inspection: **1 access key, 1 FullAccess, 0 restricted**. Only public permissions/counts were printed; no private key values were requested.
 - [Prior comprehensive secret scan](https://github.com/Okiki3/Rewind/actions/runs/43541137589): passed for reachable Git history and current tree. Automated secret scanning has false-negative risk.
 - JavaScript production dependency command: `npm audit --omit=dev --audit-level=high`: **25 findings (6 low, 19 high)**; no claim that all findings are practically exploitable.
-- Contract unit tests in `contract/src/lib.rs` cover sender-only cancellation, release timing, refund/release callbacks, double payout prevention, failures and reserves; this review branch adds five targeted adversarial regression tests.
+- Contract unit tests in `contract/src/lib.rs` cover sender-only cancellation, release timing, refund/release callbacks, double payout prevention, failures and reserves; this review branch adds five targeted adversarial regression tests for refund/release races and caller permissions. The external callback's NEAR-generated `#[private]` entrypoint check has **not** been independently simulated onchain; direct Rust-method unit calls bypass that generated wrapper.
 - The independent keeper signs permissionless `release` operations using a separate key stored in a Railway volume (not in the downloadable SDK). The contract **deploy/access key** is a different security boundary.
 
 ## Findings and priorities
