@@ -532,4 +532,67 @@ mod tests {
         testing_env!(poor.build());
         c.create_transfer(account("bob.test.near"));
     }
+
+    // Additional adversarial checks added during the independent release review.
+    #[test]
+    #[should_panic(expected = "Only the sender may cancel")]
+    fn attacker_cannot_claim_refund_after_failed_delivery() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        testing_env!(context("anyone.test.near", 61_000, 0).build());
+        let _ = c.release(U64(0));
+        testing_env!(context("escrow.test.near", 61_001, 0).build());
+        assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
+        testing_env!(context("mallory.test.near", 61_002, 0).build());
+        let _ = c.cancel(U64(0));
+    }
+
+    #[test]
+    #[should_panic(expected = "Transfer is not pending")]
+    fn attacker_cannot_release_while_refund_is_in_flight() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        testing_env!(context("alice.test.near", 60_999, 0).build());
+        let _ = c.cancel(U64(0));
+        testing_env!(context("mallory.test.near", 61_000, 0).build());
+        let _ = c.release(U64(0));
+    }
+
+    #[test]
+    #[should_panic(expected = "Transfer is not pending")]
+    fn failed_refund_cannot_be_released_to_recipient() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        testing_env!(context("alice.test.near", 60_999, 0).build());
+        let _ = c.cancel(U64(0));
+        testing_env!(context("escrow.test.near", 61_002, 0).build());
+        assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
+        testing_env!(context("mallory.test.near", 61_003, 0).build());
+        let _ = c.release(U64(0));
+    }
+
+    #[test]
+    #[should_panic(expected = "Sender and recipient must differ")]
+    fn cannot_pay_self_into_escrow() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        testing_env!(context("alice.test.near", 1_000, ONE_NEAR).build());
+        c.create_transfer(account("alice.test.near"));
+    }
+
+    #[test]
+    #[should_panic]
+    fn external_account_cannot_invoke_private_settlement_callback() {
+        testing_env!(context("owner.test.near", 1_000, 0).build());
+        let mut c = contract();
+        create(&mut c, 1_000);
+        testing_env!(context("alice.test.near", 60_999, 0).build());
+        let _ = c.cancel(U64(0));
+        testing_env!(context("mallory.test.near", 61_001, 0).build());
+        let _ = c.on_settle(U64(0), Ok(()));
+    }
+
 }
