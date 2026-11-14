@@ -3,6 +3,14 @@
 **Status (14 Nov 2026): NOT APPROVED FOR REAL FUNDS.**
 This is a separate contract **candidate**, not a migration of the working Testnet escrow. Never upgrade the existing Testnet account with this Rust state layout.
 
+## Owner account selected and publicly verified
+
+- **Proposed owner account:** `afrolite.near` — exists on NEAR Mainnet, with one FullAccess public key.
+- **Proposed separate escrow subaccount:** `escrow.afrolite.near` — does not yet exist.
+- **Public-only verification:** https://github.com/Okiki3/Rewind/actions/runs/43609112281.
+- **Precise setup and owner-signature steps:** [MAINNET_OWNER_SETUP.md](MAINNET_OWNER_SETUP.md).
+- **Important:** public keys are not proof of custody, and no escrow account was created or deployed. The new V2 contract is still blocked from real-money activation pending an independent audit and owner-authorized signing.
+
 ## What has been engineered
 
 - Independent contract source `contract-mainnet/src/lib.rs`; fixed 60-second onchain protection and sender-only cancellation.
