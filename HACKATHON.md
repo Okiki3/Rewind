@@ -56,7 +56,7 @@ For a quick review without creating transactions, refer to the verified fixed-wi
 - [x] Current GitHub Actions on `main` passed contract/frontend tests, mobile browser smoke and a secret scanner across reachable Git history (14 Nov 2026).
 - [x] Testnet escrow, cancellation and automated release demonstrated with public NEAR transaction evidence.
 - [x] SDK and Mainnet read-only preview are reachable through the hosted website.
-- [ ] Confirm this GitHub repository is publicly accessible without sign-in.
+- [x] Confirm this GitHub repository is publicly accessible without sign-in. **Confirmed public via GitHub repository metadata on 14 Nov 2026:** https://github.com/Okiki3/Rewind.
 - [ ] Attach a **real recorded Testnet flow** or authentic screenshots to a public X post, stating it was built at **NEAR HACKATHON**, tagging `@NEARProtocol` and `#NEARHackathon`.
 - [ ] Copy the actual public X post URL.
 - [ ] Enter the public repository URL, X demo URL, team contact and a **separate owner-controlled NEAR Mainnet payout account** into the [official form](https://nearhackathon.com/#apply).
