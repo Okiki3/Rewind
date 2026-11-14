@@ -201,6 +201,10 @@ function App() {
     event.preventDefault()
     // Mainnet is read-only account verification. No wallet or escrow calls.
     if (!paymentsEnabled) {
+      if (!isMainnetPreview) {
+        setTx({ kind: 'error', message: 'Protected payments are unavailable because the Testnet contract is not configured.' })
+        return
+      }
       setLoading(true)
       try {
         const inspected = await preflight({
@@ -519,7 +523,7 @@ function App() {
             <label>Optional amount alert above (NEAR)<input aria-label="Amount warning threshold" value={threshold} onChange={(e) => { setThreshold(e.target.value); localStorage.setItem('rewind-threshold-near', e.target.value); setReview(null) }} placeholder="e.g. 1" inputMode="decimal" /></label>
           </details>
           {review && <div className="preflight-review" role="status">
-            <strong>{review.warnings.some((warning) => warning.code === 'unverified') ? 'Verification temporarily unavailable' : review.warnings.some((warning) => warning.code === 'missing_account' || warning.code === 'lookalike') ? 'Check the recipient address' : review.warnings.length ? 'Additional payment checks' : 'Recipient verified. Review before sending.'}</strong>
+            <strong>{isMainnetPreview ? (review.valid ? 'Mainnet recipient check complete' : 'Mainnet recipient could not be verified') : review.warnings.some((warning) => warning.code === 'unverified') ? 'Verification temporarily unavailable' : review.warnings.some((warning) => warning.code === 'missing_account' || warning.code === 'lookalike') ? 'Check the recipient address' : review.warnings.length ? 'Additional payment checks' : 'Recipient verified. Review before sending.'}</strong>
             {review.warnings.map((warning, index) => <p key={index}>{warning.message}</p>)}
             <p>{isMainnetPreview ? 'Read-only review:' : "You're sending"} <strong>{amount} NEAR</strong> {isMainnetPreview ? 'for' : 'to'} <strong>{review.recipient}</strong>. {isMainnetPreview && 'No payment will be submitted.'}</p>
             {!review.valid && <p>{review.warnings.some((warning) => warning.code === 'unverified') ? 'REWIND could not check the network. No payment has been submitted. Please retry address verification.' : 'This recipient account was not found or is invalid. Check it before continuing.'}</p>}
@@ -641,6 +645,7 @@ function App() {
           <h2>Add REWIND to your wallet.</h2>
           <p>Bring recipient checks and protected NEAR payments into your existing send flow using the public SDK. No separate REWIND app is required.</p>
           <p>Your wallet retains transaction signing. The contract enforces the cancellation period and destination; the SDK never requests private keys.</p>
+          {isMainnetPreview && <p><strong>Integration status:</strong> The available SDK example and protected-payment contract are for Testnet. Mainnet signing is disabled pending a verified deployment and security review.</p>}
           <div className="developer-links">
             <a href={`${import.meta.env.BASE_URL}sdk/index.js`} target="_blank" rel="noreferrer">Download JavaScript SDK</a>
             <a href={`${import.meta.env.BASE_URL}sdk/index.d.ts`} target="_blank" rel="noreferrer">TypeScript definitions</a>
