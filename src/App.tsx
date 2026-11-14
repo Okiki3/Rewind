@@ -483,38 +483,101 @@ function App() {
           <small className="form-help">Protected by REWIND. If you send the wrong amount or enter the wrong address, you can cancel within 60 seconds.</small>
         </form>
 
-        <div className="panel inspect">
-          <div className="panel-title"><span>TRACK</span><div><h2>Transfer status</h2><p>See your payment's progress on NEAR.</p></div></div>
+        <div className="panel inspect" ref={statusRef} id="transfer-status">
+          <div className="panel-title"><span>TRACK</span><div><h2>Transfer status</h2><p>Updates automatically after your payment. Verified on NEAR.</p></div></div>
           <form className="search" onSubmit={(e) => { e.preventDefault(); void loadTransfer() }}>
             <input aria-label="Transfer ID" inputMode="numeric" value={lookupId} onChange={(e) => setLookupId(e.target.value)} placeholder="Enter transfer ID" />
             <button disabled={loading}>Check status</button>
           </form>
           {transfer ? (
-            <article className="card">
+            <article className="card payment-receipt" aria-label={`Details for transfer ${transfer.id}`}>
               <div className="card-head"><span>TRANSFER #{transfer.id}</span><strong data-status={transfer.status}>{statusLabel(transfer.status, clock >= Number(transfer.expires_at_ms))}</strong></div>
-              <div className="amount">{formatNear(transfer.amount)} <small>NEAR</small></div>
-              <dl>
-                <div><dt>Sender</dt><dd>{transfer.sender}</dd></div>
-                <div><dt>Recipient</dt><dd>{transfer.recipient}</dd></div>
-                <div><dt>Protection</dt><dd>{transfer.status === 'Released' ? 'Delivered to recipient' : transfer.status === 'Cancelled' ? 'Refunded to sender' : remaining}</dd></div>
+              <div className="receipt-amount">{formatNear(transfer.amount)} <small>NEAR</small></div>
+              {transfer.status === 'Pending' && secondsToCancel > 0 && (
+                <div className="receipt-clock" role="timer" aria-label="Time remaining to cancel">
+                  <div className="receipt-clock-label"><span>Time left to cancel</span><strong>{timerLabel}</strong></div>
+                  <div className="receipt-progress-track" aria-hidden="true"><div style={{ width: `${protectionProgress}%` }} /></div>
+                  <small>Only the sender can cancel before the 60-second deadline.</small>
+                </div>
+              )}
+              {transfer.status === 'Pending' && secondsToCancel === 0 && (
+                <p className="receipt-notice">The cancellation window has ended. Automatic delivery is pending network confirmation.</p>
+              )}
+              {transfer.status === 'Released' && <p className="receipt-success">Delivered to the intended recipient. This payment can no longer be cancelled.</p>}
+              {transfer.status === 'Cancelled' && <p className="receipt-success">Cancellation complete. The sender's NEAR has been refunded.</p>}
+              {['Refunding', 'Releasing'].includes(transfer.status) && <p className="receipt-notice">The blockchain is processing settlement. Waiting for contract confirmation.</p>}
+              {transfer.status === 'DeliveryFailed' && <p className="receipt-notice">Delivery failed onchain. The sender can request a refund or retry delivery.</p>}
+              {transfer.status === 'RefundFailed' && <p className="receipt-notice">Refund failed onchain. The sender can retry the refund.</p>}
+              <dl className="receipt-details">
+                <div><dt>From</dt><dd>{transfer.sender}</dd></div>
+                <div><dt>To</dt><dd>{transfer.recipient}</dd></div>
+                <div><dt>Network</dt><dd>NEAR {getNetworkId() === 'testnet' ? 'Testnet' : 'Mainnet'}</dd></div>
+                <div><dt>Created</dt><dd>{formatPaymentTime(transfer.created_at_ms)}</dd></div>
+                <div><dt>Cancel deadline</dt><dd>{formatPaymentTime(transfer.expires_at_ms)}</dd></div>
+                <div><dt>Completed</dt><dd>{formatPaymentTime(transfer.settled_at_ms)}</dd></div>
+                <div><dt>Transaction hash</dt><dd className="receipt-hash">
+                  {activeHash ? <>
+                    <code title={activeHash}>{activeHash}</code>
+                    <div className="receipt-hash-actions">
+                      <button type="button" onClick={() => void copyPaymentHash(activeHash)}>{copiedHash === activeHash ? 'Copied' : 'Copy hash'}</button>
+                      <a href={explorerTx(activeHash)} target="_blank" rel="noreferrer">View transaction <span aria-hidden="true">↗</span></a>
+                    </div>
+                  </> : <>
+                    <span className="receipt-unavailable">Hash not yet indexed for this transfer.</span>
+                    <a href={explorerAccount(transfer.sender)} target="_blank" rel="noreferrer">Find it in sender activity <span aria-hidden="true">↗</span></a>
+                  </>}
+                </dd></div>
               </dl>
-              {['Refunding', 'Releasing'].includes(transfer.status) && <p className="pending">Settlement is processing. The blockchain callback will confirm the result.</p>}
-              {transfer.status === 'Pending' && clock >= Number(transfer.expires_at_ms) && <p className="pending">The 60-second protection period has ended. Automatic delivery is being requested. Refresh the status to see when it completes.</p>}
-              {transfer.status === 'DeliveryFailed' && <p className="pending">Automatic delivery failed. The sender can request a refund, or delivery can be retried.</p>}
-              <div className="actions">
-                {canCancel && <button onClick={() => settle('cancel')} disabled={loading}>{transfer.status === 'DeliveryFailed' || transfer.status === 'RefundFailed' ? 'Request refund' : 'Cancel transfer'}</button>}
-                {canRelease && <button onClick={() => settle('release')} disabled={loading}>{transfer.status === 'DeliveryFailed' ? 'Retry delivery' : 'Release now'}</button>}
+              <div className="receipt-bottom">
+                {(canCancel || canRelease) && <div className="actions">
+                  {canCancel && <button type="button" onClick={() => void settle('cancel')} disabled={loading}>
+                    {transfer.status === 'DeliveryFailed' || transfer.status === 'RefundFailed' ? 'Request refund' : 'Cancel transfer'}
+                  </button>}
+                  {canRelease && <button type="button" onClick={() => void settle('release')} disabled={loading}>
+                    {transfer.status === 'DeliveryFailed' ? 'Retry delivery' : 'Delivery delayed? Retry'}
+                  </button>}
+                </div>}
+                <button type="button" className="refresh-mini" disabled={loading} onClick={() => void loadTransfer(transfer.id)}>Refresh status</button>
               </div>
             </article>
-          ) : <div className="empty"><span>⌁</span><p>Track a payment</p><small>Enter its transfer ID to check the status or cancel while eligible.</small></div>}
+          ) : trackingNewPayment || activeTransferId || pendingHash ? (
+            <div className="tracking-new" role="status">
+              <span className="tracking-dot" />
+              <strong>{activeTransferId ? `Loading transfer #${activeTransferId}` : 'Finding your new transfer'}</strong>
+              <p>{pendingHash ? 'Your wallet transaction was confirmed. REWIND is locating the contract record. Do not send again.' : 'Reading the latest status from the blockchain.'}</p>
+              {(pendingHash || (activeTransferId && paymentHashes[activeTransferId])) && (
+                <a href={explorerTx(pendingHash || paymentHashes[activeTransferId!]!)} target="_blank" rel="noreferrer">View confirmed transaction <span aria-hidden="true">↗</span></a>
+              )}
+              {activeTransferId && <button type="button" onClick={() => void loadTransfer(activeTransferId)}>Retry status lookup</button>}
+            </div>
+          ) : (
+            <div className="empty"><span>⌁</span><p>Your payment will appear here</p><small>Send NEAR using REWIND, or enter an existing transfer ID. The countdown starts as soon as the contract accepts your payment.</small></div>
+          )}
         </div>
       </section>
 
       {accountId && <section className="history">
-        <div className="panel-title"><span>HISTORY</span><div><h2>Recent transfers</h2><p>Payments linked to your connected wallet.</p></div></div>
-        {history.length ? <div className="history-grid">{history.map((item) => <button key={item.id} onClick={() => void loadTransfer(item.id)}>
-          <span>#{item.id}</span><strong>{formatNear(item.amount)} NEAR</strong><em>{statusLabel(item.status, clock >= Number(item.expires_at_ms))}</em><small>{item.sender === accountId ? `to ${short(item.recipient)}` : `from ${short(item.sender)}`}</small>
-        </button>)}</div> : <p className="history-empty">No REWIND transfers found for this account.</p>}
+        <div className="history-heading">
+          <div className="panel-title"><span>HISTORY</span><div><h2>Recent transfers</h2><p>Actual onchain transfers for your connected wallet. Select one to view its full status.</p></div></div>
+          <small>New payment hashes are saved in this browser. Older hashes are matched against public NEAR explorer records when available.</small>
+        </div>
+        {history.length ? <div className="history-grid">{history.map((item) => {
+          const hash = paymentHashes[item.id]
+          return <article className="history-entry" key={item.id} data-selected={activeTransferId === item.id}>
+            <button type="button" className="history-select" onClick={() => { setPendingHash(null); selectActive(item.id, item); void loadTransfer(item.id) }}>
+              <span className="history-top"><span>TRANSFER #{item.id}</span><em>{statusLabel(item.status, clock >= Number(item.expires_at_ms))}</em></span>
+              <strong>{formatNear(item.amount)} <small>NEAR</small></strong>
+              <span>{item.sender === accountId ? 'To ' + item.recipient : 'From ' + item.sender}</span>
+              <small>{formatPaymentTime(item.created_at_ms)}</small>
+            </button>
+            <div className="history-hash">
+              <span>Transaction hash</span>
+              {hash
+                ? <a href={explorerTx(hash)} title={hash} target="_blank" rel="noreferrer">{short(hash)} <span aria-hidden="true">↗</span></a>
+                : <a href={explorerAccount(item.sender)} target="_blank" rel="noreferrer">Find on explorer <span aria-hidden="true">↗</span></a>}
+            </div>
+          </article>
+        })}</div> : <p className="history-empty">No REWIND transfers found for this account.</p>}
       </section>}
 
       <section className="clarity">
