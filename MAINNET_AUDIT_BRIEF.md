@@ -2,7 +2,7 @@
 
 ## Scope and release status
 
-**Status: NO-GO for Mainnet real funds.** Review this exact candidate before approving deployment or enabling production frontend/keeper flags. The Testnet V1 contract currently serving `/rewind` is a different state layout and ABI; it must not be upgraded in place.
+**Status: V2 candidate deployed to `afrolite-rewind-261114.near` on 14 Nov 2026 in PAUSED state; NO-GO for Mainnet customer funds.** Deployment was owner-authorised; code hash `BNVC3dFi3HigCqTAtW2sxxW8vJLNrPzi3yTXDjwBdstW` and read-only `get_owner=afrolite.near`, `is_paused=true` were verified afterward. See [onchain evidence](MAINNET_DEPLOYMENT_EVIDENCE.md). Review this exact deployed candidate before enabling any production frontend/keeper flag. The Testnet V1 contract currently serving `/rewind` is a different state layout and ABI; it must not be upgraded in place.
 
 Exact source and pinned dependencies:
 - `contract-mainnet/src/lib.rs`
