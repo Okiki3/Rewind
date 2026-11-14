@@ -56,7 +56,7 @@ The user selected **Meteor Wallet** to control the proposed owner account `afrol
 7. Provision an independently controlled, funded keeper account with its own secret storage and audited monitoring. Do not put its credentials into frontend `VITE_*` configuration.
 8. Run an owner-approved, strictly capped real-payment settlement, refund and failed-recipient recovery before opening Mainnet payments to anyone else. Update exact contract address and code hash only after verification.
 
-**NO-GO now:** Mainnet V2 is still a tested candidate, not independently audited and not deployed. The live website's Mainnet mode must remain read-only. A real account creation, funding or contract deployment requires an explicit owner's wallet signature, and no such action was taken by the preflight workflow.
+**NO-GO now:** Mainnet V2 is still a tested candidate, not independently audited and not deployed. The latest hardened WASM is SHA-256 `876b2ce33694813263a44093471cd1119e59a1ce036c0469e9802aa7e0937bb5`, with NEAR code hash `A7cptN7Nbks1Mi8GbPozwFvhqdEXgH5dW1cmwW3E2Huv`. Onchain Testnet proof: https://github.com/Okiki3/Rewind/actions/runs/43613229545. It now rejects third-party initialisation. The live website's Mainnet mode must remain read-only. A real account creation, funding or contract deployment requires an explicit owner's wallet signature, and no such action was taken by the preflight workflow.
 
 ## Read-only commands to re-check before signing
 
