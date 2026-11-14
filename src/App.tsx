@@ -434,12 +434,11 @@ function App() {
         <a className="brand" href={import.meta.env.BASE_URL} aria-label="REWIND home"><span className="brand-mark">↶</span> REWIND <b>NEAR</b></a>
         <div className="nav-links"><a href="#how-it-works">How it works</a><a href="#app">{isMainnetPreview ? 'Address check' : 'Send NEAR'}</a><a href="#developers">SDK</a></div>
         <div className="network-switcher">
-          <span className="network-switcher-title" id="network-switcher-label">Network</span>
+          <span className="network-switcher-title">Network</span>
           <button
             type="button"
             className="network-switch"
             role="switch"
-            aria-labelledby="network-switcher-label"
             aria-label={isMainnetPreview ? 'Mainnet selected. Switch to Testnet' : 'Testnet selected. Switch to Mainnet preview'}
             aria-checked={isMainnetPreview}
             title={isMainnetPreview ? 'Switch to working NEAR Testnet' : 'Switch to NEAR Mainnet preview (no payments)'}
