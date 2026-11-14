@@ -26,7 +26,6 @@ import {
   storePaymentHash, formatPaymentTime,
 } from './transfer-records'
 import { findHistoricalHashes } from './explorer-history'
-import MainnetDeployment from './MainnetDeployment'
 
 const initialTx: TxState = { kind: 'idle', message: '' }
 
@@ -440,9 +439,9 @@ function App() {
             type="button"
             className="network-switch"
             role="switch"
-            aria-label={isMainnetPreview ? 'Mainnet selected. Switch to Testnet' : 'Testnet selected. Switch to Mainnet preview'}
+            aria-label={isMainnetPreview ? 'Mainnet selected. Switch to Testnet' : 'Testnet selected. Switch to Mainnet'}
             aria-checked={isMainnetPreview}
-            title={isMainnetPreview ? 'Switch to working NEAR Testnet' : 'Switch to NEAR Mainnet preview (no payments)'}
+            title={isMainnetPreview ? 'Switch to Testnet' : 'Switch to Mainnet'}
             onClick={() => { window.location.assign(getNetworkSwitchHref(isMainnetPreview ? 'testnet' : 'mainnet')) }}
           >
             <span className="network-switch-track" aria-hidden="true">
@@ -452,29 +451,21 @@ function App() {
             </span>
           </button>
         </div>
-        {isMainnetPreview
-          ? <span className="nav-preview-label">Read-only</span>
-          : accountId
-            ? <button className="wallet" onClick={signOut}>{short(accountId)} · disconnect</button>
-            : <button className="wallet" onClick={() => { void connectWallet().catch((error: unknown) => setTx({ kind: 'error', message: errorMessage(error) })) }}>Connect NEAR wallet</button>}
+        {!isMainnetPreview && (accountId
+          ? <button className="wallet" onClick={signOut}>{short(accountId)} · disconnect</button>
+          : <button className="wallet" onClick={() => { void connectWallet().catch((error: unknown) => setTx({ kind: 'error', message: errorMessage(error) })) }}>Connect NEAR wallet</button>)}
       </nav>
-
-      {isMainnetPreview && <section className="network-preview-banner" role="status">
-        <strong>Mainnet preview · No real payments</strong>
-        <p>You can check recipient accounts on NEAR Mainnet. Protected transfers, wallet signing and refunds are disabled until a Mainnet escrow contract passes security review and is deployed.</p>
-        <a href={getNetworkSwitchHref('testnet')}>Use the working Testnet version <span aria-hidden="true">→</span></a>
-      </section>}
 
       <header className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Payment protection for NEAR</p>
           <h1>Send NEAR with confidence.</h1>
-          <p className="lede">Check recipient details before you send. REWIND-protected payments give senders 60 seconds to cancel a mistake before delivery. {isMainnetPreview && <strong> Protected transfers currently run on Testnet only.</strong>}</p>
+          <p className="lede">Check recipient details before you send. REWIND-protected payments give senders 60 seconds to cancel a mistake before delivery.</p>
           <div className="hero-actions">
-            <a className="button primary" href="#app">{isMainnetPreview ? 'Check a Mainnet address' : 'Try REWIND on Testnet'} <span aria-hidden="true">→</span></a>
-            <a className="button secondary" href={isMainnetPreview ? getNetworkSwitchHref('testnet') : '#developers'}>{isMainnetPreview ? 'Try protected Testnet payments' : 'Integrate with a wallet'} <span aria-hidden="true">↗</span></a>
+            <a className="button primary" href="#app" >{isMainnetPreview ? 'Check an address' : 'Try REWIND'} <span aria-hidden="true">→</span></a>
+            <a className="button secondary" href={isMainnetPreview ? getNetworkSwitchHref('testnet') : '#developers'}>{isMainnetPreview ? 'Switch to Testnet' : 'Integrate with a wallet'} <span aria-hidden="true">↗</span></a>
           </div>
-          <p className="testnet-note"><i /> {isMainnetPreview ? 'NEAR Mainnet · Read-only preview · No funds moved' : 'NEAR Testnet prototype · Test tokens only'}</p>
+          <p className="testnet-note"><i /> {isMainnetPreview ? 'NEAR Mainnet · Address check' : 'NEAR Testnet · Working demo'}</p>
         </div>
 
         <div className="hero-demo" aria-label="Illustrative protected transfer, not a live payment">
@@ -521,7 +512,7 @@ function App() {
 
       <section className="app-intro" id="app">
         <div><p className="section-kicker">{isMainnetPreview ? 'Mainnet explorer' : 'Try it'}</p><h2>{isMainnetPreview ? 'Check a Mainnet address.' : 'Make a protected payment.'}</h2></div>
-        <p>{isMainnetPreview ? 'Read-only checks use live NEAR Mainnet RPC. No wallet connection, transfers or real funds.' : 'Running on Testnet. Connect a Testnet wallet and use test tokens to see the full payment flow.'}</p>
+        <p>{isMainnetPreview ? 'Check recipient accounts on Mainnet. Switch to Testnet above to try protected payments.' : 'Connect a Testnet wallet and use test tokens to try protected payments.'}</p>
       </section>
 
       <section className="workspace">
@@ -544,10 +535,12 @@ function App() {
             {!review.valid && <button className="retry-check" type="button" onClick={() => { setReview(null); setTx(initialTx) }}>Retry address check</button>}
           </div>}
           <button className="primary form-submit" disabled={loading || (!isMainnetPreview && !!accountId && (!isNearAccountId(recipient.trim().toLowerCase()) || (review !== null && !review.valid)))}>{isMainnetPreview ? 'Check Mainnet recipient' : accountId ? (review?.valid ? 'Confirm and send NEAR' : 'Review payment') : 'Connect wallet to begin'} <span>→</span></button>
-          <small className="form-help">{isMainnetPreview ? 'Verification only. Mainnet transfers and wallet signing are disabled while the escrow undergoes security review.' : 'A REWIND-protected payment can be cancelled by its sender for 60 seconds after the contract accepts it.'}</small>
+          <small className="form-help">{isMainnetPreview ? 'Mainnet is an address-check preview on this page.' : 'A REWIND-protected payment can be cancelled by its sender for 60 seconds after the contract accepts it.'}</small>
         </form>
 
-        {isMainnetPreview ? <MainnetDeployment testnetHref={getNetworkSwitchHref('testnet')} /> : <div className="panel inspect" ref={statusRef} id="transfer-status">
+        {isMainnetPreview ? <div className="panel inspect" id="transfer-status">
+          <div className="panel-title"><span>NETWORK</span><div><h2>Mainnet preview</h2><p>Switch to Testnet above to send protected payments.</p></div></div>
+        </div> : <div className="panel inspect" ref={statusRef} id="transfer-status">
           <div className="panel-title"><span>TRACK</span><div><h2>Transfer status</h2><p>Follow the payment's onchain status and confirmation.</p></div></div>
           <form className="search" onSubmit={(e) => { e.preventDefault(); void loadTransfer() }}>
             <input aria-label="Transfer ID" inputMode="numeric" value={lookupId} onChange={(e) => setLookupId(e.target.value)} placeholder="Enter transfer ID" />
@@ -650,7 +643,6 @@ function App() {
           <h2>Add REWIND to your wallet.</h2>
           <p>Bring recipient checks and protected NEAR payments into your existing send flow using the public SDK. No separate REWIND app is required.</p>
           <p>Your wallet retains transaction signing. The contract enforces the cancellation period and destination; the SDK never requests private keys.</p>
-          {isMainnetPreview && <p><strong>Integration status:</strong> The available SDK example and protected-payment contract are for Testnet. Mainnet signing is disabled pending a verified deployment and security review.</p>}
           <div className="developer-links">
             <a href={`${import.meta.env.BASE_URL}sdk/index.js`} target="_blank" rel="noreferrer">Download JavaScript SDK</a>
             <a href={`${import.meta.env.BASE_URL}sdk/index.d.ts`} target="_blank" rel="noreferrer">TypeScript definitions</a>
@@ -666,7 +658,7 @@ function App() {
       </section>
 
       <section className="final-cta">
-        <div><p className="section-kicker">Get started</p><h2>{isMainnetPreview ? 'Mainnet checks, without risking funds.' : 'Review first. Send with confidence.'}</h2></div>
+        <div><p className="section-kicker">Get started</p><h2>Review first. Send with confidence.</h2></div>
         <a className="button primary" href={isMainnetPreview ? getNetworkSwitchHref('testnet') : '#app'}>{isMainnetPreview ? 'Use the live Testnet demo' : 'Try REWIND on Testnet'} <span aria-hidden="true">↑</span></a>
       </section>
 
@@ -685,8 +677,8 @@ function App() {
         </div>
         <div className="footer-about">
           <strong>Built by <a href="https://x.com/kisc_0" target="_blank" rel="noopener noreferrer" aria-label="Afrolite on X">Afrolite</a></strong>
-          <span>{isMainnetPreview ? 'Mainnet read-only preview' : 'NEAR Testnet · Experimental prototype'}</span>
-          <p>{isMainnetPreview ? 'Real NEAR transfers disabled. Mainnet escrow not deployed.' : 'Test tokens only. Not audited for real-money use.'}</p>
+          <span>{isMainnetPreview ? 'NEAR Mainnet · Preview' : 'NEAR Testnet · Experimental prototype'}</span>
+          <p>{isMainnetPreview ? 'Payments disabled in website preview.' : 'Test tokens only. Not audited for real-money use.'}</p>
         </div>
         <div className="footer-bottom">
           <span>© 2026 REWIND</span>
