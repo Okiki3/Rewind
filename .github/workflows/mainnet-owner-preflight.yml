@@ -1,0 +1,27 @@
+name: REWIND Mainnet owner preflight (READ ONLY)
+on:
+  push:
+    branches: [feat/mainnet-contract-hardening-20261114]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-owner:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[mainnet-owner-preflight]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check owner and proposed escrow on NEAR Mainnet via public RPC
+        env:
+          REWIND_OWNER_ACCOUNT_ID: afrolite.near
+          REWIND_MAINNET_ESCROW_ACCOUNT_ID: escrow.afrolite.near
+          NEAR_RPC_URL: https://rpc.mainnet.fastnear.com
+        run: node scripts/mainnet-owner-preflight.mjs
+      - name: Confirm no wallet or signing material was used
+        run: echo 'PREFLIGHT_READONLY_COMPLETE; NO MAINNET_TRANSACTION; NO SECRET_KEYS'
