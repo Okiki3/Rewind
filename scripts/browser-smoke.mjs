@@ -116,13 +116,16 @@ try {
     }
 
     await page.getByRole('button', { name: /connect near wallet/i }).click()
-    await page.waitForTimeout(1000)
-    if (errors.length) throw new Error('Wallet chooser JavaScript error(s): ' + errors.join(' | '))
-    const chooser = await page.locator('body').innerText()
-    console.log('AFTER_CLICK:', chooser.slice(-700))
-    if (!/Meteor|Sender|MyNearWallet|NEAR Mobile|Connect/i.test(chooser)) {
-      throw new Error('Wallet chooser not visible')
+    const chooserPopup = page.locator('.hot-connector-popup .modal-content')
+    await chooserPopup.waitFor({ timeout: 12000 })
+    const walletChoices = await chooserPopup.locator('.connect-item').count()
+    if (walletChoices < 1) {
+      throw new Error('NEAR Connect chooser rendered without any supported Testnet wallets')
     }
+    if (errors.length) throw new Error('Wallet chooser JavaScript error(s): ' + errors.join(' | '))
+    console.log('NEAR_CONNECT_WALLET_CHOICES:', walletChoices)
+    await page.keyboard.press('Escape')
+    await chooserPopup.waitFor({ state: 'hidden', timeout: 4000 })
     // The modern Near Connect chooser owns its signing windows, rather than
     // reusing the old Wallet Selector's named MyNearWallet popup. A real
     // desktop wallet approval requires a manual or wallet-provider E2E test.
