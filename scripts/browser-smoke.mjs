@@ -69,15 +69,36 @@ try {
     console.log('BROWSER_REAL_RECIPIENT_VERIFIED')
 
     const heroText = await page.locator('.hero').innerText()
-    if (!heroText.includes('With control.') || heroText.includes('00:42') || heroText.includes('60S PROTECTION')) {
+    if (!heroText.includes('Send NEAR with confidence.') ||
+        !heroText.includes('Check recipient details before you send.') ||
+        heroText.includes('00:42') || heroText.includes('60S PROTECTION')) {
       throw new Error('Homepage copy regressed or contains misleading static countdown')
     }
     const sendButton = page.locator('.hero-actions .button').first()
     const sendBounds = await sendButton.boundingBox()
     if (!sendBounds || sendBounds.y + sendBounds.height > 768) {
-      throw new Error('Send NEAR hero CTA falls below the desktop viewport')
+      throw new Error('Protected-send hero CTA falls below the desktop viewport')
     }
-    console.log('HOMEPAGE_COPY_AND_CTA_PASS')
+    const creditLink = page.locator('footer .footer-about a')
+    if ((await creditLink.innerText()).trim() !== 'Afrolite' ||
+        (await creditLink.getAttribute('href')) !== 'https://x.com/kisc_0') {
+      throw new Error('Built by Afrolite footer attribution/link is missing or incorrect')
+    }
+    console.log('HOMEPAGE_COPY_CTA_AND_FOOTER_PASS')
+
+    // The responsive layout should remain usable, with readable footer links.
+    await page.setViewportSize({ width: 390, height: 844 })
+    const mobileWidth = await page.evaluate(() => ({
+      screen: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth,
+    }))
+    if (mobileWidth.content > mobileWidth.screen + 3) {
+      throw new Error('Homepage overflows the mobile viewport: ' + JSON.stringify(mobileWidth))
+    }
+    await creditLink.scrollIntoViewIfNeeded()
+    if (!(await creditLink.isVisible())) throw new Error('Afrolite link is not visible on mobile')
+    console.log('MOBILE_LAYOUT_AND_FOOTER_PASS')
+    await page.setViewportSize({ width: 1366, height: 768 })
 
     const sdk = await page.request.get(base + 'sdk/index.js')
     console.log('SDK_HTTP', sdk.status(), 'TYPE', sdk.headers()['content-type'])
