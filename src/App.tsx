@@ -502,14 +502,14 @@ function App() {
       </section>
 
       <section className="app-intro" id="app">
-        <div><p className="section-kicker">Try it</p><h2>Make a protected payment.</h2></div>
-        <p>Running on {getNetworkId()}. Connect a Testnet wallet and use test tokens to see the full payment flow.</p>
+        <div><p className="section-kicker">{isMainnetPreview ? 'Mainnet explorer' : 'Try it'}</p><h2>{isMainnetPreview ? 'Check a Mainnet address.' : 'Make a protected payment.'}</h2></div>
+        <p>{isMainnetPreview ? 'Read-only checks use live NEAR Mainnet RPC. No wallet connection, transfers or real funds.' : 'Running on Testnet. Connect a Testnet wallet and use test tokens to see the full payment flow.'}</p>
       </section>
 
       <section className="workspace">
         <form className="panel create" onSubmit={submitCreate}>
-          <div className="panel-title"><span>SEND</span><div><h2>Send NEAR</h2><p>Enter an address and amount. Review the details before approving in your wallet.</p></div></div>
-          <label>Recipient NEAR account<input required value={recipient} onChange={(e) => { setRecipient(e.target.value); setReview(null) }} placeholder="friend.testnet" /></label>
+          <div className="panel-title"><span>{isMainnetPreview ? 'VERIFY' : 'SEND'}</span><div><h2>{isMainnetPreview ? 'Verify a Mainnet recipient' : 'Send NEAR'}</h2><p>{isMainnetPreview ? 'Check a Mainnet account and optional amount warnings. Nothing will be signed or sent.' : 'Enter an address and amount. Review the details before approving in your wallet.'}</p></div></div>
+          <label>Recipient NEAR account<input required value={recipient} onChange={(e) => { setRecipient(e.target.value); setReview(null) }} placeholder={isMainnetPreview ? 'friend.near' : 'friend.testnet'} /></label>
           <div className="row">
             <label>Amount<input required min="0.00001" step="any" type="number" value={amount} onChange={(e) => { setAmount(e.target.value); setReview(null) }} /><b>NEAR</b></label>
 
@@ -521,15 +521,24 @@ function App() {
           {review && <div className="preflight-review" role="status">
             <strong>{review.warnings.some((warning) => warning.code === 'unverified') ? 'Verification temporarily unavailable' : review.warnings.some((warning) => warning.code === 'missing_account' || warning.code === 'lookalike') ? 'Check the recipient address' : review.warnings.length ? 'Additional payment checks' : 'Recipient verified. Review before sending.'}</strong>
             {review.warnings.map((warning, index) => <p key={index}>{warning.message}</p>)}
-            <p>You're sending <strong>{amount} NEAR</strong> to <strong>{review.recipient}</strong>.</p>
+            <p>{isMainnetPreview ? 'Read-only review:' : "You're sending"} <strong>{amount} NEAR</strong> {isMainnetPreview ? 'for' : 'to'} <strong>{review.recipient}</strong>. {isMainnetPreview && 'No payment will be submitted.'}</p>
             {!review.valid && <p>{review.warnings.some((warning) => warning.code === 'unverified') ? 'REWIND could not check the network. No payment has been submitted. Please retry address verification.' : 'This recipient account was not found or is invalid. Check it before continuing.'}</p>}
             {!review.valid && <button className="retry-check" type="button" onClick={() => { setReview(null); setTx(initialTx) }}>Retry address check</button>}
           </div>}
-          <button className="primary form-submit" disabled={loading || (!!accountId && (!isNearAccountId(recipient.trim().toLowerCase()) || (review !== null && !review.valid)))}>{accountId ? (review?.valid ? 'Confirm and send NEAR' : 'Review payment') : 'Connect wallet to begin'} <span>→</span></button>
-          <small className="form-help">A REWIND-protected payment can be cancelled by its sender for 60 seconds after the contract accepts it.</small>
+          <button className="primary form-submit" disabled={loading || (!isMainnetPreview && !!accountId && (!isNearAccountId(recipient.trim().toLowerCase()) || (review !== null && !review.valid)))}>{isMainnetPreview ? 'Check Mainnet recipient' : accountId ? (review?.valid ? 'Confirm and send NEAR' : 'Review payment') : 'Connect wallet to begin'} <span>→</span></button>
+          <small className="form-help">{isMainnetPreview ? 'Verification only. Mainnet transfers and wallet signing are disabled while the escrow undergoes security review.' : 'A REWIND-protected payment can be cancelled by its sender for 60 seconds after the contract accepts it.'}</small>
         </form>
 
-        <div className="panel inspect" ref={statusRef} id="transfer-status">
+        {isMainnetPreview ? <div className="panel inspect mainnet-roadmap" id="transfer-status">
+          <div className="panel-title"><span>MAINNET</span><div><h2>Protected payments are not live yet</h2><p>We are building the Mainnet release with the same 60-second protection model.</p></div></div>
+          <div className="mainnet-roadmap-steps">
+            <p><strong>01 · Secure the contract</strong><span>Review contract behavior, storage costs and dependency advisories.</span></p>
+            <p><strong>02 · Deploy and verify</strong><span>Deploy a separately controlled Mainnet contract with verifiable code and custody.</span></p>
+            <p><strong>03 · Activate payments</strong><span>Connect wallets, publish a pinned SDK and enable transfers after validation.</span></p>
+          </div>
+          <p className="mainnet-roadmap-note">No Mainnet contract address has been published or approved. Switching networks does not move funds or convert existing Testnet transfers.</p>
+          <a className="button secondary" href={getNetworkSwitchHref('testnet')}>Try protected payments on Testnet <span aria-hidden="true">→</span></a>
+        </div> : <div className="panel inspect" ref={statusRef} id="transfer-status">
           <div className="panel-title"><span>TRACK</span><div><h2>Transfer status</h2><p>Follow the payment's onchain status and confirmation.</p></div></div>
           <form className="search" onSubmit={(e) => { e.preventDefault(); void loadTransfer() }}>
             <input aria-label="Transfer ID" inputMode="numeric" value={lookupId} onChange={(e) => setLookupId(e.target.value)} placeholder="Enter transfer ID" />
@@ -599,10 +608,10 @@ function App() {
           ) : (
             <div className="empty"><span>⌁</span><p>Your transfer status will appear here</p><small>Send a protected payment or enter an existing transfer ID to track its status.</small></div>
           )}
-        </div>
+        </div>}
       </section>
 
-      {accountId && <section className="history">
+      {!isMainnetPreview && accountId && <section className="history">
         <div className="history-heading">
           <div className="panel-title"><span>HISTORY</span><div><h2>Recent transfers</h2><p>Actual onchain transfers for your connected wallet. Select one to view its full status.</p></div></div>
           <small>New payment hashes are saved in this browser. Older hashes are matched against public NEAR explorer records when available.</small>
@@ -647,8 +656,8 @@ function App() {
       </section>
 
       <section className="final-cta">
-        <div><p className="section-kicker">Get started</p><h2>Review first. Send with confidence.</h2></div>
-        <a className="button primary" href="#app">Try REWIND on Testnet <span aria-hidden="true">↑</span></a>
+        <div><p className="section-kicker">Get started</p><h2>{isMainnetPreview ? 'Mainnet checks, without risking funds.' : 'Review first. Send with confidence.'}</h2></div>
+        <a className="button primary" href={isMainnetPreview ? getNetworkSwitchHref('testnet') : '#app'}>{isMainnetPreview ? 'Use the live Testnet demo' : 'Try REWIND on Testnet'} <span aria-hidden="true">↑</span></a>
       </section>
 
       {tx.kind !== 'idle' && <aside className={`toast ${tx.kind}`}><button onClick={() => setTx(initialTx)}>×</button><strong>{tx.kind === 'error' ? 'Not confirmed' : 'Transaction status'}</strong><p>{tx.message}</p>{tx.kind === 'wallet' && <small>Some wallets sign through an existing permission without a popup. Check your wallet transactions and REWIND transfer history before trying to send again.</small>}{tx.hash && <a href={explorerTx(tx.hash)} target="_blank" rel="noreferrer">View {short(tx.hash)} on NEAR explorer ↗</a>}</aside>}
@@ -666,8 +675,8 @@ function App() {
         </div>
         <div className="footer-about">
           <strong>Built by <a href="https://x.com/kisc_0" target="_blank" rel="noopener noreferrer" aria-label="Afrolite on X">Afrolite</a></strong>
-          <span>NEAR Testnet · Experimental prototype</span>
-          <p>Test tokens only. Not audited for real-money use.</p>
+          <span>{isMainnetPreview ? 'Mainnet read-only preview' : 'NEAR Testnet · Experimental prototype'}</span>
+          <p>{isMainnetPreview ? 'Real NEAR transfers disabled. Mainnet escrow not deployed.' : 'Test tokens only. Not audited for real-money use.'}</p>
         </div>
         <div className="footer-bottom">
           <span>© 2026 REWIND</span>
