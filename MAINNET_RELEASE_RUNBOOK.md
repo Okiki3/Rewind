@@ -37,11 +37,11 @@ This is a separate contract **candidate**, not a migration of the working Testne
 
 ## Verified REAL V2 deployment and immutable build evidence
 
-- **Deployed ephemeral Testnet V2 contract:** `escrow.rewind-v2-mwghg491-45a9d31f.testnet`
-- **Onchain NEAR `code_hash`:** `EnNHVY88UeBbQkpvRMN6bCgszfztGbh88qe49EFsNrU`
-- **WASM SHA-256:** `0387d8dc9a975d4da82f87d418bf2d4d2f51283990f91bc76c94603165d81579`
-- **CI full test:** https://github.com/Okiki3/Rewind/actions/runs/43603269956
-- **Testnet explorer:** https://testnet.nearblocks.io/address/escrow.rewind-v2-mwghg491-45a9d31f.testnet
+- **Deployed ephemeral Testnet V2 contract:** `escrow.rewind-v2-mwglgeow-a4bd9385.testnet`
+- **Onchain NEAR `code_hash`:** `A7cptN7Nbks1Mi8GbPozwFvhqdEXgH5dW1cmwW3E2Huv`
+- **WASM SHA-256:** `876b2ce33694813263a44093471cd1119e59a1ce036c0469e9802aa7e0937bb5`
+- **CI full test:** https://github.com/Okiki3/Rewind/actions/runs/43613229545
+- **Testnet explorer:** https://testnet.nearblocks.io/address/escrow.rewind-v2-mwglgeow-a4bd9385.testnet
 - **Initial cancellation/refund:** https://testnet.nearblocks.io/txns/D7fpHW6vR6eNwVdJJxdgkCUAsvEwcfor1MaaWZfobBWn
 - **Released after expiry by bounded keeper:** https://testnet.nearblocks.io/txns/9iDiTcsWvsVM1pSbDxoBnaJnHXFpdNnzBVaCdkWBvQMy (creation transaction); the same CI job invoked the actual keeper scanner after the deadline without a recipient click
 - **Recovery refund after a failed payment to a missing account:** https://testnet.nearblocks.io/txns/axAM6UmXTyBx4hj3HFbDemhdn3SfRtT4SgsujeArqgE
