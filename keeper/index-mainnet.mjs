@@ -3,12 +3,12 @@
  * contract ownership, audited WASM, dedicated keeper funds and monitoring.
  * Existing Testnet keeper remains unchanged.
  */
-import nearAPI from 'near-api-js';
+import { Account, JsonRpcProvider, KeyPair } from 'near-api-js';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { scanMainnetDueTransfers } from './scan-mainnet.mjs';
 
-const { connect, keyStores, KeyPair } = nearAPI;
+// near-api-js v7 uses Account with named exports.
 
 if (process.env.NEAR_NETWORK_ID !== 'mainnet') {
   throw new Error('This worker can only run on the explicitly configured Mainnet');
@@ -32,11 +32,25 @@ if (!contractId.endsWith('.near') || !accountId ||
   throw new Error('Missing verified contract/account/code hash/keeper credentials');
 }
 
-const keyStore = new keyStores.InMemoryKeyStore();
-await keyStore.setKey('mainnet', accountId, KeyPair.fromString(privateKey));
-const near = await connect({ networkId: 'mainnet', nodeUrl: rpcUrl, keyStore });
-const account = await near.account(accountId);
-await account.state();
+const keyPair = KeyPair.fromString(privateKey);
+const provider = new JsonRpcProvider({ url: rpcUrl });
+const account = new Account(accountId, provider, privateKey);
+await provider.query({ request_type: 'view_account', account_id: accountId, finality: 'final' });
+const accessKeys = await provider.query({ request_type: 'view_access_key_list', account_id: accountId, finality: 'final' });
+if (!accessKeys.keys.some(k => k.public_key === keyPair.getPublicKey().toString() && k.access_key.permission === 'FullAccess')) {
+  throw new Error('Keeper signing key is not a registered FullAccess key on the configured keeper account');
+}
+const legacyAccount = {
+  viewFunction: async ({contractId, methodName, args}) => {
+    const response = await provider.query({request_type:'call_function',account_id:contractId,method_name:methodName,
+      args_base64:Buffer.from(JSON.stringify(args||{})).toString('base64'),finality:'final'});
+    return JSON.parse(Buffer.from(response.result).toString('utf8'));
+  },
+  functionCall: async ({contractId,methodName,args,gas,attachedDeposit}) =>
+    account.signAndSendTransaction({receiverId:contractId,actions:[
+      (await import('near-api-js')).actions.functionCall(methodName,args,BigInt(gas),BigInt(attachedDeposit))
+    ],waitUntil:'FINAL',throwOnFailure:true})
+};
 
 function loadCursor() {
   try {
@@ -57,7 +71,7 @@ function saveCursor(cursor) {
 }
 
 async function verifyDeployment() {
-  const state = await near.connection.provider.query({
+  const state = await provider.query({
     request_type: 'view_account',
     account_id: contractId,
     finality: 'final',
@@ -65,7 +79,7 @@ async function verifyDeployment() {
   if (state.code_hash !== expectedHash) {
     throw new Error('Escrow contract code hash changed; Mainnet keeper refusing to sign');
   }
-  const fee = await account.viewFunction({
+  const fee = await legacyAccount.viewFunction({
     contractId, methodName: 'get_storage_fee', args: {},
   });
   if (String(fee) !== '20000000000000000000000') {
@@ -79,7 +93,7 @@ while (true) {
   try {
     await verifyDeployment();
     const summary = await scanMainnetDueTransfers({
-      account, contractId, cursor, logger: console,
+      account: legacyAccount, contractId, cursor, logger: console,
     });
     cursor = summary.nextCursor;
     saveCursor(cursor);
