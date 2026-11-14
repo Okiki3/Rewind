@@ -1,0 +1,29 @@
+name: NEAR Connect migration security validation
+on:
+  push:
+    branches: [feat/near-connect-v2-security-20261114]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  connector-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact locked dependencies
+        run: npm ci --no-fund
+      - name: Production dependency security scan
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build frontend and SDK
+        run: npm run build
+      - name: Run all unit tests
+        run: npm test
+      - name: Validate keeper integration
+        run: node --test keeper/scan-mainnet.test.mjs
