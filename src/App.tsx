@@ -448,10 +448,10 @@ function App() {
       <header className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Payment protection for NEAR</p>
-          <h1>Catch mistakes before they cost you</h1>
+          <h1>An extra layer of security for every transfer.</h1>
           <p className="lede">REWIND checks the recipient before you approve, then gives protected payments a 60-second cancellation window before delivery.</p>
           <div className="hero-actions">
-            <a className="button primary" href="#app" >{isMainnetPreview ? 'Check an address' : 'Protect a payment'} <span aria-hidden="true">→</span></a>
+            <a className="button primary" href="#app" >{isMainnetPreview ? 'Check an address' : 'Use Rewind'} <span aria-hidden="true">→</span></a>
             <a className="button secondary" href={isMainnetPreview ? getNetworkSwitchHref('testnet') : '#developers'}>{isMainnetPreview ? 'Switch to Testnet' : 'Build with REWIND'} <span aria-hidden="true">↗</span></a>
           </div>
           <p className="testnet-note"><i /> {isMainnetPreview ? 'NEAR Mainnet · Address check' : 'NEAR Testnet'}</p>
