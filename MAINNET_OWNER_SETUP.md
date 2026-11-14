@@ -45,6 +45,39 @@ The user selected **Meteor Wallet** to control the proposed owner account `afrol
 
 **Important:** a normal Meteor sign-in to a dApp does not automatically grant permission to create, deploy or upgrade a contract. The NEAR CLI has a separate interactive create-account/fund-myself flow, but its browser-wallet import is not guaranteed to work directly with Meteor on every device. Do not assume compatibility or import a full-access key into a third-party deployment website. Use only a tested and independently reviewed owner-signing flow.
 
+## Fastest owner-controlled creation path (after funding)
+
+**Verified on Mainnet 14 November 2026:** `afrolite.near` has less than 3.6 NEAR of reported raw account balance; creation of a 3.5 NEAR funded escrow with a small gas/buffer allowance cannot proceed at that balance. First fund your **existing** `afrolite.near` in Meteor. Never send funds to the nonexistent escrow account.
+
+**Actual candidate size:** 219,854 WASM bytes, requiring approximately **2.19854 NEAR storage stake** for code alone at the published 0.00001 NEAR per byte rate. Keys, state, gas and the contract's separate **0.5 NEAR** operating reserve are additional. The unsigned setup proposal requires **3.5 to 10 NEAR** of initial escrow funding; **4 NEAR** is a practical provisional account-creation amount for later independent review, not a guarantee that production costs are covered.
+
+**On your own Windows computer** (no signing keys or seed phrases given to ChatGPT):
+
+1. Install official **near-cli-rs v0.31.1** from the [NEAR CLI Windows MSI release](https://github.com/near/near-cli-rs/releases/tag/v0.31.1). Check `near --version` in a fresh PowerShell window.
+2. Only **if `afrolite.near` is already securely available in your local NEAR CLI OS keychain**, the documented owner-signed CLI flow is:
+
+   ```powershell
+   near account create-account fund-myself escrow.afrolite.near '4 NEAR' autogenerate-new-keypair save-to-keychain sign-as afrolite.near network-config mainnet sign-with-keychain send
+   ```
+
+   This creates a *distinct* escrow FullAccess signing key in your **own local OS keychain** and asks your existing owner key to approve 4 NEAR initial funding (plus transaction fees). Review all transaction details on your device before approval. **Do not run this if you do not already control the `afrolite.near` key in the CLI keychain.**
+
+3. If you use **Meteor only**, and the CLI says it cannot find an `afrolite.near` signing key, **stop**. Meteor browser sign-in is not automatically the same as NEAR CLI keychain access. Do **not** export your Meteor recovery phrase or private key to an online helper, CI, or this chat. The separate [unsigned account-creation proposal](scripts/mainnet-escrow-create-proposal.mjs) is ready; it requires a new securely generated **public** escrow key and explicit wallet-signing integration, not keys pasted into ChatGPT.
+4. After signing, confirm `escrow.afrolite.near` exists and its onchain access key is the exact new public key held by **your** secure keychain:
+
+   ```powershell
+   near account view-account-summary escrow.afrolite.near network-config mainnet now
+   near account list-keys escrow.afrolite.near network-config mainnet now
+   ```
+
+**Do not deploy contract code, accept real payment deposits, or unpause the contract based on these steps alone.** An independent audit and verification of the exact WASM are still required. The new hardened contract is designed to initialize with deposits **paused** by default.
+
+## Independent audit appointment
+
+Public scope and immutable Testnet evidence: [Audit brief](MAINNET_AUDIT_BRIEF.md) and [independent-audit tracking issue](https://github.com/Okiki3/Rewind/issues/17).
+
+An external auditor has **not** accepted an engagement. Hacken publishes a [NEAR/Rust smart-contract audit intake](https://hacken.io/services/blockchain-security/near-smart-contract-security-audit/) with an estimated **5 to 15 business days** for a full review; their actual availability, cost and timeline must be confirmed directly. An audit enquiry, public GitHub issue, or passing CI is **not** an audit.
+
 ## Safe next steps (no private keys in this repository or chat)
 
 1. Using the wallet where you control `afrolite.near`, confirm **Mainnet** and that it is the active signing account. You must authorize the transaction yourself.
