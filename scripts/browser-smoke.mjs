@@ -361,8 +361,8 @@ try {
     })
     await mainnetPage.goto(base + '?network=mainnet', { waitUntil: 'domcontentloaded' })
     await mainnetPage.getByText('Mainnet preview · No real payments').waitFor({ timeout: 12000 })
-    const activeNetwork = await mainnetPage.locator('.network-toggle a[aria-current="page"]').innerText()
-    if (!activeNetwork.includes('Mainnet') || await mainnetPage.getByRole('button', { name: /Connect NEAR wallet/i }).count()) {
+    const activeNetwork = await mainnetPage.getByRole('switch', { name: /mainnet selected/i }).getAttribute('aria-checked')
+    if (activeNetwork !== 'true' || await mainnetPage.getByRole('button', { name: /Connect NEAR wallet/i }).count()) {
       throw new Error('Mainnet preview selected incorrectly or attempted live wallet connection')
     }
     const mainnetWidth = await mainnetPage.evaluate(() => ({
@@ -390,14 +390,19 @@ try {
     console.log('MAINNET_PREVIEW_READONLY_AND_RPC_PASS')
 
     // Going back must restore the existing functional Testnet payment UI.
-    await mainnetPage.locator('.network-toggle').getByRole('link', { name: 'Testnet' }).click()
+    await mainnetPage.getByRole('switch', { name: /mainnet selected/i }).click()
     await mainnetPage.waitForURL('**/rewind/?network=testnet')
     await mainnetPage.getByRole('button', { name: /Connect NEAR wallet/i }).waitFor({ timeout: 12000 })
     if (await mainnetPage.getByRole('button', { name: /Confirm and send NEAR/i }).count()) {
       throw new Error('Testnet payment review unexpectedly skipped after switching networks')
     }
-    if (!(await mainnetPage.locator('.network-toggle a[aria-current="page"]').innerText()).includes('Testnet')) {
+    if (await mainnetPage.getByRole('switch', { name: /testnet selected/i }).getAttribute('aria-checked') !== 'false') {
       throw new Error('Switching back did not restore Testnet')
+    }
+    await mainnetPage.getByRole('switch', { name: /testnet selected/i }).click()
+    await mainnetPage.waitForURL('**/rewind/?network=mainnet')
+    if (await mainnetPage.getByRole('switch', { name: /mainnet selected/i }).getAttribute('aria-checked') !== 'true') {
+      throw new Error('Switching to Mainnet again did not update the toggle')
     }
     console.log('TESTNET_MAINNET_SWITCH_ROUNDTRIP_PASS')
     await mainnetPage.close()
