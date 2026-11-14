@@ -45,6 +45,8 @@ The user selected **Meteor Wallet** to control the proposed owner account `afrol
 
 **Important:** a normal Meteor sign-in to a dApp does not automatically grant permission to create, deploy or upgrade a contract. The NEAR CLI has a separate interactive create-account/fund-myself flow, but its browser-wallet import is not guaranteed to work directly with Meteor on every device. Do not assume compatibility or import a full-access key into a third-party deployment website. Use only a tested and independently reviewed owner-signing flow.
 
+**Funding recheck:** User reported adding NEAR to `afrolite.near` on 14 Nov 2026. Recheck onchain available funds before preparing any owner-signed escrow funding transaction. This statement is not confirmation of onchain balance.
+
 ## Fastest owner-controlled creation path (after funding)
 
 **Verified on Mainnet 14 November 2026:** `afrolite.near` has less than 3.6 NEAR of reported raw account balance; creation of a 3.5 NEAR funded escrow with a small gas/buffer allowance cannot proceed at that balance. First fund your **existing** `afrolite.near` in Meteor. Never send funds to the nonexistent escrow account.
