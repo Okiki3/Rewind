@@ -407,7 +407,7 @@ function App() {
       <header className="hero">
         <div className="hero-copy">
           <p className="eyebrow">A smarter way to send NEAR</p>
-          <h1>Send NEAR.<br /><em>With more control.</em></h1>
+          <h1>Send NEAR.<br /><em>With control.</em></h1>
           <p className="lede">Check who you are paying before you send. REWIND verifies the recipient account, warns about possible address mistakes, and lets you <strong>cancel within 60 seconds</strong> if you spot an error. Otherwise, delivery happens automatically.</p>
           <div className="hero-actions">
             <a className="button primary" href="#app">Send NEAR <span>→</span></a>
