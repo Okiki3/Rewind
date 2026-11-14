@@ -1,0 +1,30 @@
+name: Owner deployment screen HTTP smoke (READ ONLY)
+on:
+  push:
+    branches: [feat/mainnet-contract-hardening-20261114]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[owner-deploy-smoke]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify deployed owner-only page and SHA-256 pinned WASM
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN=https://rewind-owner-deploy-production.up.railway.app
+          curl --fail --location --retry 5 --retry-delay 4 --connect-timeout 10 --max-time 20 \
+            "$ORIGIN/rewind/owner-deploy" -o /tmp/owner.html
+          grep -q '<div id="root"></div>' /tmp/owner.html
+          echo "OWNER_DEPLOY_HTML=PASS"
+          curl --fail --location --retry 5 --retry-delay 4 --connect-timeout 10 --max-time 40 \
+            "$ORIGIN/rewind/release/rewind-v2-candidate.wasm" -o /tmp/rewind.wasm
+          echo '9a15f0f7cd347566982a5dbbf7eb994037c1932bed2f22f8c1c14981975ac333  /tmp/rewind.wasm' | sha256sum -c -
+          test "$(wc -c < /tmp/rewind.wasm)" -eq 219854
+          echo "PINNED_WASM_HTTP=PASS"
+          curl --fail --silent "$ORIGIN/health" | grep -q '"ok":true'
+          echo "ISOLATED_OWNER_SCREEN_HOST=READY"
+          echo "MAINNET_CONTRACT_DEPLOYED=NO"
