@@ -2,7 +2,9 @@
 
 **REWIND:** Native NEAR payment protection that wallet developers can integrate without handing user keys to a separate service.
 
-**Track:** Open Innovation (primary); Real-World Money (secondary, if supported by the event rules).
+**Track:** Open Innovation (primary); Real-World Money (secondary, if supported by the event rules). 
+
+**Hackathon submission links:** [Working Testnet demo](https://afrolitehub.com/rewind/?network=testnet) · [Mainnet contract (paused)](https://nearblocks.io/address/afrolite-rewind-261114.near) · [Source code](https://github.com/Okiki3/Rewind) · [Mainnet proof](MAINNET_DEPLOYMENT_EVIDENCE.md).
 
 ## Problem and approach
 
@@ -15,9 +17,9 @@ The contract temporarily holds assets as a technical necessity; REWIND is **not*
 The one REWIND website now includes a **Testnet / Mainnet** switcher in its navigation.
 
 - **Testnet:** the working, signed and onchain-proven protected-payment flow, including refunds and automatic delivery.
-- **Mainnet preview:** live read-only account verification against Mainnet RPC, with optional address/amount warnings. **Mainnet escrow operations are deliberately disabled** because no separately audited and owner-controlled Mainnet contract has been deployed.
+- **Mainnet preview:** live read-only account verification plus a separate deployed V2 Mainnet contract at `afrolite-rewind-261114.near` with `owner=afrolite.near` and `paused=true` (verified 14 Nov 2026). **Mainnet escrow payments are deliberately disabled** pending independent audit and operations review.
 
-Mainnet is therefore **not** an additional live contract deployment or real-money payment service. It demonstrates network-aware architecture without falsely implying that an unaudited escrow is ready for production. Selecting another network preserves the website route while isolating onchain configuration and transfer records.
+Mainnet has a real, owner-authorised contract deployment, but is **not a live real-money payment service**. The frontend performs read-only checks and keeps Mainnet wallet signing disabled. The [V2 deployment evidence](MAINNET_DEPLOYMENT_EVIDENCE.md) records the transaction, onchain hash and paused state. Selecting another network preserves the website route while isolating onchain configuration and transfer records.
 
 ## Architecture
 
@@ -46,7 +48,7 @@ Mainnet is therefore **not** an additional live contract deployment or real-mone
 4. **Submit** a protected payment in your Testnet wallet. **See:** the transfer card appear automatically, showing the onchain status, cancellation timer and transaction hash (when the wallet returns or explorer indexer resolves it).
 5. **Cancel** while the transfer is Pending and within the 60-second contract deadline. **See:** a refund state confirmed by the contract; the final refund may need another blockchain confirmation.
 6. **Repeat** without cancelling. **See:** after expiry, the independent keeper requests delivery and the status eventually becomes Released. An expired timer alone does not mean delivery is complete.
-7. **Switch** to [Mainnet preview](https://afrolitehub.com/rewind/?network=mainnet). **See:** read-only Mainnet account checks without a Connect/Send/Cancel action. Real Mainnet escrow is **not** available.
+7. **Switch** to [Mainnet preview](https://afrolitehub.com/rewind/?network=mainnet). **See:** read-only account checks and a live RPC attestation of the deployed V2 escrow's code hash, `afrolite.near` owner and `paused=true`. There is no Mainnet Connect/Send/Cancel action because public deposits are not enabled.
 8. **Inspect** the public [wallet SDK guide](sdk/README.md). **See:** independent transaction builders and recipient checks that wallet developers can integrate without supplying signing keys to REWIND.
 
 For a quick review without creating transactions, refer to the verified fixed-window contract and its refund/release examples below. The browser screenshots from CI may include **mocked wallet/provider state** and are UI regression evidence, not substitutes for a signed onchain demo.
@@ -72,7 +74,7 @@ See `sdk/README.md`. The wallet SDK builds a standard NEAR FunctionCall that an 
 
 - Existing Testnet contract `rewind-1794578605.testnet` uses the **old variable-duration ABI**. It is incompatible with this revised frontend and must NOT be used as proof for the new contract.
 - The corrected fixed-60-second Testnet contract is deployed and proven onchain: `rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet`. Keep frontend and contract ABI aligned.
-- Mainnet escrow is **not deployed or available for payments**. Its read-only website preview only verifies addresses against NEAR Mainnet RPC. A separately audited and owner-controlled contract is required before real-funds activation.
+- Mainnet escrow V2 is **deployed but PAUSED and unavailable for payments**. The read-only website preview verifies the onchain account and contract hash. An independent audit, secure upgrade-key custody, separate funded keeper and controlled settlement checks remain required before financial activation.
 - The keeper requires a funded signing account; a worker service with no valid credentials will not release automatically.
 - No guarantees of scam detection or universal transaction reversibility.
 - Code is experimental and unaudited. Public unrestricted Mainnet usage is unsafe.
@@ -87,4 +89,4 @@ See `sdk/README.md`. The wallet SDK builds a standard NEAR FunctionCall that an 
 - No-click automatic payout: https://testnet.nearblocks.io/txns/5Kqx2TW6jrw787VaHBCiqX8URk59vz496vTr3RQ7CeC6 ; the keeper finalized transfer #2 without a user-triggered Release.
 - GitHub Actions [Testnet smoke test](https://github.com/Okiki3/Rewind/actions/runs/43512886926) and [keeper proof](https://github.com/Okiki3/Rewind/actions/runs/43515254909).
 - Unit/SDK/front-end checks pass. JS sandbox runner reports a WASM deserialization compatibility error on an outdated sandbox version; actual current NEAR Testnet execution succeeds. This older sandbox diagnostic is explicitly nonblocking in CI.
-- This guide documents the working Testnet submission and read-only Mainnet preview. Repository visibility must be checked independently when submitting. No Mainnet expenditure or deployment has occurred.
+- This guide documents the working Testnet submission and the read-only Mainnet preview. The owner completed a paused Mainnet V2 deployment on 14 Nov 2026, with exact evidence in [MAINNET_DEPLOYMENT_EVIDENCE.md](MAINNET_DEPLOYMENT_EVIDENCE.md). No Mainnet customer deposits have been enabled.
