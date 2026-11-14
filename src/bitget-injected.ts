@@ -1,4 +1,5 @@
-import type { FinalExecutionOutcome, ConnectorAction } from '@hot-labs/near-connect'
+import type { ConnectorAction } from '@hot-labs/near-connect'
+import type { FinalExecutionOutcome } from './near-types'
 
 type BitgetError = string | { type?: string; message?: string }
 
