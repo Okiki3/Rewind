@@ -22,6 +22,7 @@ import {
   identifyCreatedPayment, findNewTransfer, recordKey, loadPaymentRecords,
   storePaymentHash, formatPaymentTime,
 } from './transfer-records'
+import { findHistoricalHashes } from './explorer-history'
 
 const initialTx: TxState = { kind: 'idle', message: '' }
 
@@ -61,6 +62,7 @@ function App() {
   const [pendingHash, setPendingHash] = useState<string | null>(null)
   const activeRef = useRef<string | null>(null)
   const trackGeneration = useRef(0)
+  const lastExplorerCheck = useRef<Record<string, number>>({})
   const [history, setHistory] = useState<Transfer[]>([])
   const [tx, setTx] = useState<TxState>(initialTx)
   const [loading, setLoading] = useState(false)
@@ -135,6 +137,29 @@ function App() {
     const timer = window.setInterval(() => { void poll() }, 3_000)
     return () => { alive = false; window.clearInterval(timer) }
   }, [accountId, activeTransferId])
+
+  useEffect(() => {
+    if (!accountId || !history.length) return
+    const missing = history.filter((entry) => entry.sender === accountId && !paymentHashes[entry.id])
+    if (!missing.length) return
+    const now = Date.now()
+    if (now - (lastExplorerCheck.current[accountId] || 0) < 60_000) return
+    lastExplorerCheck.current[accountId] = now
+    let cancelled = false
+    // Recent onchain transfer records do not carry their creation tx hash.
+    // Use a public indexer for old payments; only accept unambiguous matches.
+    void findHistoricalHashes(accountId, missing, getContractId(), getNetworkId())
+      .then((found) => {
+        if (cancelled || !Object.keys(found).length) return
+        let records = loadPaymentRecords(localStorage, localRecordsKey)
+        for (const [id, hash] of Object.entries(found)) {
+          records = storePaymentHash(localStorage, localRecordsKey, id, hash)
+        }
+        setPaymentHashes(records)
+      })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [accountId, history, paymentHashes, localRecordsKey])
 
   const loadTransfer = useCallback(async (id = lookupId) => {
     const selected = id.trim()
