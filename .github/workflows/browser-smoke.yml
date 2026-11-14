@@ -1,7 +1,7 @@
 name: REWIND browser smoke
 on:
   push:
-    branches: ["fix/white-screen-runtime", "fix/wallet-approval-popup-20261113", "main"]
+    branches: ["fix/white-screen-runtime", "fix/fastnear-rpc-and-delivery-20261114", "main"]
 jobs:
   smoke:
     runs-on: ubuntu-latest

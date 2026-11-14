@@ -18,7 +18,7 @@ const res = await fetch('https://helper.testnet.near.org/account', {
 if (!res.ok) throw new Error('Faucet returned '+res.status+': '+(await res.text()).slice(0,200));
 const keyStore = new nearAPI.keyStores.InMemoryKeyStore();
 await keyStore.setKey('testnet',accountId,keyPair);
-const near = await nearAPI.connect({networkId:'testnet',keyStore,nodeUrl:'https://rpc.testnet.near.org'});
+const near = await nearAPI.connect({networkId:'testnet',keyStore,nodeUrl:'https://rpc.testnet.fastnear.com'});
 const sender=await near.account(accountId);
 for(let i=0;i<20;i++){try{await sender.state();break;}catch(e){if(i===19)throw e;await new Promise(r=>setTimeout(r,1000));}}
 const amount='10000000000000000000000';

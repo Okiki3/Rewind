@@ -52,6 +52,22 @@ try {
     }
     console.log('BROWSER_BUFFER_PASS')
 
+    // Check a known real account through the browser, including CORS.
+    // A deprecated RPC used to report "Possible mistake" for valid accounts.
+    const verifiedAccount = await page.evaluate(async () => {
+      const sdk = await import('/rewind/sdk/index.js')
+      return await sdk.preflight({
+        recipient: 'afrolite.testnet', amountNear: '0.5', network: 'testnet',
+      })
+    })
+    if (!verifiedAccount.verifiedAccount || !verifiedAccount.valid) {
+      throw new Error('A real account is incorrectly rejected: ' + JSON.stringify(verifiedAccount))
+    }
+    if (verifiedAccount.warnings.some((warning) => warning.code === 'unverified' || warning.code === 'missing_account')) {
+      throw new Error('Incorrect address warning for real account: ' + JSON.stringify(verifiedAccount))
+    }
+    console.log('BROWSER_REAL_RECIPIENT_VERIFIED')
+
     const sdk = await page.request.get(base + 'sdk/index.js')
     console.log('SDK_HTTP', sdk.status(), 'TYPE', sdk.headers()['content-type'])
     if (!sdk.ok() || !(await sdk.text()).includes('buildProtectedSendTransaction')) {
@@ -79,7 +95,7 @@ try {
       }))
       localStorage.setItem('signedAccountId', 'sender.testnet')
     })
-    await sendPage.route('https://rpc.testnet.near.org/**', async (route) => {
+    await sendPage.route('https://rpc.testnet.fastnear.com/**', async (route) => {
       const request = route.request().postDataJSON()
       if (request.method === 'query' && request.params?.request_type === 'view_account') {
         await route.fulfill({

@@ -48,7 +48,7 @@ async function main() {
   const keyStore = new keyStores.InMemoryKeyStore();
   await keyStore.setKey(networkId, rootId, keyPair);
   const near = await connect({
-    networkId, keyStore, nodeUrl: 'https://rpc.testnet.near.org',
+    networkId, keyStore, nodeUrl: 'https://rpc.testnet.fastnear.com',
   });
   const root = await near.account(rootId);
   let ready = false;
