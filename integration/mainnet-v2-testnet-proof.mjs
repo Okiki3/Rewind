@@ -66,6 +66,21 @@ async function recordSummary(lines) {
   await appendFile(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
 }
 
+async function waitForFinalStatus(view, transferId, expected, timeoutMs = 45_000) {
+  const started = Date.now();
+  let last = null;
+  while (Date.now() - started < timeoutMs) {
+    last = await view('get_transfer', { transfer_id: String(transferId) });
+    if (last?.status === expected) return last;
+    if (!['Pending', 'Refunding', 'Releasing', 'DeliveryFailed', 'RefundFailed'].includes(last?.status)) {
+      throw Error('Unexpected terminal status for ' + transferId + ': ' + String(last?.status));
+    }
+    await sleep(1_500);
+  }
+  throw Error('Timed out waiting for onchain callback ' + transferId +
+    ' to become ' + expected + ' (last=' + String(last?.status) + ')');
+}
+
 async function main() {
   assert(rootId.endsWith('.testnet') && contractId.endsWith('.testnet'));
   console.log('REWIND_V2_DEPLOYMENT_TEST=START; Testnet only; ephemeral keys');
@@ -140,7 +155,7 @@ async function main() {
     gas: tgas, attachedDeposit: 0n,
   }), 'Permissionless release cannot settle early');
   const cancel0 = await send('cancel', { transfer_id: '0' });
-  assert.equal((await view('get_transfer', { transfer_id: '0' })).status, 'Cancelled');
+  await waitForFinalStatus(view, '0', 'Cancelled');
   assert.equal(await view('get_total_reserved'), '0');
   console.log('REWIND_V2_REAL_REFUND=PASS; tx=' + cancel0.transaction.hash);
 
@@ -198,7 +213,7 @@ async function main() {
 
   // Release failure after deadline MUST remain refundable to original sender.
   const refund2 = await send('cancel', { transfer_id: '2' });
-  assert.equal((await view('get_transfer', { transfer_id: '2' })).status, 'Cancelled');
+  await waitForFinalStatus(view, '2', 'Cancelled');
   assert.equal(await view('get_total_reserved'), '0');
   assert.equal((await view('get_transfers_for_account',
     { account_id: rootId, limit: 10 })).length, 3);
