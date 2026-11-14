@@ -54,6 +54,7 @@ try {
         if(ch==='\r'||ch==='\n'){
           stdin.off('data',onData);
           if(raw)stdin.setRawMode(false);
+          stdin.pause();
           stdout.write('\n');
           resolve(secret);
           return;
