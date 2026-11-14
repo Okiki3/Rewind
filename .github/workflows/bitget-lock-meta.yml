@@ -1,0 +1,31 @@
+name: Generate Bitget wallet lock metadata
+on:
+  push:
+    branches: [feat/fix-mobile-near-wallet-20261114]
+permissions:
+  contents: read
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate exact, locked metadata for official Bitget adapter
+        run: |
+          cp package-lock.json /tmp/before-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund @near-wallet-selector/bitget-wallet@10.1.4
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const before=JSON.parse(fs.readFileSync("/tmp/before-lock.json","utf8"));
+            const after=JSON.parse(fs.readFileSync("package-lock.json","utf8"));
+            const diff={root:after.packages[""].dependencies,addedPackages:{}};
+            for(const [key,value] of Object.entries(after.packages)){
+              if(!(key in before.packages) || JSON.stringify(before.packages[key])!==JSON.stringify(value)) diff.addedPackages[key]=value;
+            }
+            console.log("BITGET_LOCK_DIFF_BEGIN"+JSON.stringify(diff)+"BITGET_LOCK_DIFF_END");
+          '
