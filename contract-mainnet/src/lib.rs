@@ -88,7 +88,9 @@ impl Contract {
         require!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
-            paused: false,
+            // Deployment is safe to prepare before audit: public deposits are
+            // DENIED until owner explicitly authorises unpause onchain.
+            paused: true,
             transfers: LookupMap::new(StorageKey::Transfers),
             sender_count: LookupMap::new(StorageKey::SenderCount),
             recipient_count: LookupMap::new(StorageKey::RecipientCount),
@@ -355,7 +357,10 @@ mod tests {
 
     fn setup() -> Contract {
         testing_env!(context("escrow.mainnet", 1_000, 0).build());
-        Contract::new(account("owner.near"))
+        let mut contract = Contract::new(account("owner.near"));
+        testing_env!(context("owner.near", 1_000, 0).build());
+        contract.set_paused(false);
+        contract
     }
 
     fn create(c: &mut Contract, ms: u64, recipient: &str) {
@@ -374,6 +379,23 @@ mod tests {
     fn contract_account_can_initialize_owner() {
         let c = setup();
         assert_eq!(c.get_owner(), account("owner.near"));
+    }
+
+    #[test]
+    fn escrow_is_paused_on_deploy_until_explicit_owner_approval() {
+        testing_env!(context("escrow.mainnet", 1_000, 0).build());
+        let mut c = Contract::new(account("owner.near"));
+        assert!(c.is_paused());
+        testing_env!(context("alice.near", 1_001, YOCTO + STORAGE_FEE).build());
+        let failed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            c.create_transfer(account("bob.near"), U128(YOCTO));
+        }));
+        assert!(failed.is_err());
+        testing_env!(context("owner.near", 1_002, 0).build());
+        c.set_paused(false);
+        assert!(!c.is_paused());
+        create(&mut c, 1_003, "bob.near");
+        assert_eq!(c.get_transfer_count(), U64(1));
     }
 
     #[test]
