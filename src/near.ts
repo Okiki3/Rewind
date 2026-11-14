@@ -5,6 +5,7 @@ import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet'
 import { setupSender } from '@near-wallet-selector/sender'
 import { setupNearMobileWallet } from '@near-wallet-selector/near-mobile-wallet'
 import '@near-wallet-selector/modal-ui/styles.css'
+import { selectRewindNetwork, networkSwitchHref, canUseProtectedTransfers, type RewindNetwork } from './networks'
 import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTransaction } from '../sdk/index'
 import type { Transfer } from './types'
 import { reserveWalletPopup, closeReservedWalletPopup, type WalletPopup } from './wallet-popup'
@@ -15,16 +16,23 @@ import {
 
 export { formatNear } from './amount'
 
-const networkId = import.meta.env.VITE_NEAR_NETWORK_ID || 'testnet'
-const contractId = import.meta.env.VITE_NEAR_CONTRACT_ID || ''
-// Legacy near.org endpoints return a deprecation -429 in production.
-// This URL is also passed to injected wallets and transaction signers.
-const nodeUrl = import.meta.env.VITE_NEAR_NODE_URL ||
-  (networkId === 'testnet' ? 'https://rpc.testnet.fastnear.com' : 'https://rpc.mainnet.fastnear.com')
+const networkId: RewindNetwork = selectRewindNetwork(
+  typeof window !== 'undefined' ? window.location.search : '',
+  import.meta.env.VITE_NEAR_NETWORK_ID || 'testnet',
+)
+// The existing VITE_NEAR_CONTRACT_ID is TESTNET ONLY.
+// Never reuse it as a Mainnet receiver, even if the URL is changed.
+const contractId = networkId === 'testnet' ? (import.meta.env.VITE_NEAR_CONTRACT_ID || '') : ''
+// Runtime selection must not reuse a Testnet build-time RPC on Mainnet.
+const nodeUrl = networkId === 'mainnet'
+  ? 'https://rpc.mainnet.fastnear.com'
+  : (import.meta.env.VITE_NEAR_NODE_URL || 'https://rpc.testnet.fastnear.com')
 // Use MyNearWallet's real app host. The previous generic near.org wallet URL
 // was incompatible with this wallet selector connector.
 const walletUrl = networkId === 'mainnet' ? 'https://app.mynearwallet.com' : 'https://testnet.mynearwallet.com'
-const helperUrl = import.meta.env.VITE_NEAR_HELPER_URL || `https://helper.${networkId}.near.org`
+const helperUrl = networkId === 'mainnet'
+  ? 'https://helper.mainnet.near.org'
+  : (import.meta.env.VITE_NEAR_HELPER_URL || 'https://helper.testnet.near.org')
 const explorerUrl = networkId === 'mainnet' ? 'https://nearblocks.io' : 'https://testnet.nearblocks.io'
 
 const selectorPromise = setupWalletSelector({
@@ -69,6 +77,7 @@ export function finishWalletApproval(popup: WalletPopup): void {
 }
 
 export async function getAccountId() {
+  if (!isProtectedPaymentEnabled()) return ''
   const injectedAccount = getBitgetMobileAccountId(networkId)
   if (injectedAccount) return injectedAccount
   const selector = await selectorPromise
@@ -79,12 +88,20 @@ export function getContractId() {
   return contractId
 }
 
-export function getNetworkId() {
+export function getNetworkId(): RewindNetwork {
   return networkId
 }
 
+export function getNetworkSwitchHref(nextNetwork: RewindNetwork): string {
+  return networkSwitchHref(window.location.href, nextNetwork)
+}
+
+export function isProtectedPaymentEnabled(): boolean {
+  return canUseProtectedTransfers(networkId, contractId)
+}
+
 export async function connectWallet() {
-  assertConfigured()
+  assertPaymentsEnabled()
   // Bitget's official wallet-selector adapter intentionally returns null on
   // mobile. Use its documented injected NEAR provider inside Bitget's dApp
   // browser instead of redirecting the user to an unrelated wallet website.
@@ -114,6 +131,7 @@ export async function signOut() {
 }
 
 export async function viewTransfer(id: string): Promise<Transfer | null> {
+  assertPaymentsEnabled()
   return rpcView<Transfer | null>('get_transfer', { transfer_id: id })
 }
 
@@ -127,22 +145,25 @@ export async function viewAccountTransfers(accountId: string): Promise<Transfer[
 }
 
 export async function createTransfer(recipient: string, amountNear: string) {
+  assertPaymentsEnabled()
   const tx = buildProtectedSendTransaction(contractId, recipient, amountNear)
   return call(tx.methodName, tx.args, BigInt(tx.deposit), BigInt(tx.gas))
 }
 
 export async function cancelTransfer(id: string) {
+  assertPaymentsEnabled()
   const tx = buildCancelTransaction(contractId, id)
   return call(tx.methodName, tx.args, BigInt(tx.deposit), BigInt(tx.gas))
 }
 
 export async function releaseTransfer(id: string) {
+  assertPaymentsEnabled()
   const tx = buildReleaseTransaction(contractId, id)
   return call(tx.methodName, tx.args, BigInt(tx.deposit), BigInt(tx.gas))
 }
 
 async function call(methodName: string, args: object, deposit: bigint, gas: bigint): Promise<FinalExecutionOutcome> {
-  assertConfigured()
+  assertPaymentsEnabled()
   const action = actionCreators.functionCall(methodName, args, gas, deposit)
   if (getBitgetMobileAccountId(networkId)) {
     return signWithBitgetMobile(networkId, contractId, [action])
@@ -159,7 +180,7 @@ async function call(methodName: string, args: object, deposit: bigint, gas: bigi
 }
 
 async function rpcView<T>(methodName: string, args: object): Promise<T> {
-  assertConfigured()
+  assertPaymentsEnabled()
   const response = await fetch(nodeUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -195,6 +216,9 @@ export function explorerAccount(accountId: string) {
   return `${explorerUrl}/address/${encodeURIComponent(accountId)}`
 }
 
-function assertConfigured() {
-  if (!contractId) throw new Error('VITE_NEAR_CONTRACT_ID is not configured')
+function assertPaymentsEnabled() {
+  if (!isProtectedPaymentEnabled()) {
+    throw new Error('Mainnet payments are not enabled. This is a read-only preview while the escrow undergoes security review. Select Testnet to try protected transfers.')
+  }
+  if (!contractId) throw new Error('Compatible Testnet contract is not configured')
 }
