@@ -30,6 +30,12 @@ export function isMobileWalletBrowser(): boolean {
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 }
 
+export function isBitgetInAppBrowser(): boolean {
+  if (!isMobileWalletBrowser()) return false
+  const host = window as Window & { bitkeep?: unknown }
+  return Boolean(host.bitkeep) || /bitget|bitkeep/i.test(navigator.userAgent)
+}
+
 export function hasBitgetInAppWallet(): boolean {
   return isMobileWalletBrowser() && provider() !== null
 }
