@@ -13,6 +13,7 @@ import assert from 'node:assert/strict'
 const network = 'mainnet'
 const ownerId = process.env.REWIND_OWNER_ACCOUNT_ID || 'afrolite.near'
 const escrowId = process.env.REWIND_MAINNET_ESCROW_ACCOUNT_ID || 'escrow.afrolite.near'
+const mobileEscrowId = 'afrolite-rewind-261114.near' // owner created from Meteor phone
 const rpc = process.env.NEAR_RPC_URL || 'https://rpc.mainnet.fastnear.com'
 const absent = '11111111111111111111111111111111'
 
@@ -70,8 +71,25 @@ async function inspect() {
   const availableEstimate = amount > effectiveStorageLock ? amount - effectiveStorageLock : 0n
   const buffer = 2n * 10n ** 22n
   const enoughFor4NearPlusGas = availableEstimate >= 4n * 10n ** 24n + buffer
+  const [mobileEscrowState, mobileEscrowKeys] = await Promise.all([
+    query('view_account', mobileEscrowId),
+    query('view_access_key_list', mobileEscrowId),
+  ])
   const results = {
     checked_network: network,
+    mobile_wallet_escrow_account_id: mobileEscrowId,
+    mobile_wallet_escrow_exists: Boolean(mobileEscrowState),
+    mobile_wallet_escrow_code_present: Boolean(mobileEscrowState && mobileEscrowState.code_hash !== absent),
+    mobile_wallet_escrow_full_access_public_key_count: Array.isArray(mobileEscrowKeys?.keys)
+      ? mobileEscrowKeys.keys.filter(x => x.access_key?.permission === 'FullAccess').length : null,
+    mobile_wallet_escrow_estimated_spendable_above_4_near: Boolean(mobileEscrowState && (
+      BigInt(mobileEscrowState.amount ?? '0') >
+        4n * 10n ** 24n +
+        (BigInt(mobileEscrowState.storage_usage ?? 0) * 10n ** 19n >
+         BigInt(mobileEscrowState.locked ?? '0')
+           ? BigInt(mobileEscrowState.storage_usage ?? 0) * 10n ** 19n - BigInt(mobileEscrowState.locked ?? '0')
+           : 0n))),
+
     proposed_owner_id: ownerId,
     owner_account_exists: Boolean(owner),
     owner_has_contract_code: Boolean(owner && owner.code_hash !== absent),
@@ -94,6 +112,10 @@ async function inspect() {
   }
 
   console.log('REWIND_MAINNET_OWNER_PREFLIGHT=' + JSON.stringify(results))
+  console.log('REWIND_MOBILE_ESCROW_READY_TO_FUND=' +
+    (results.mobile_wallet_escrow_exists &&
+     results.mobile_wallet_escrow_full_access_public_key_count > 0 &&
+     !results.mobile_wallet_escrow_code_present))
   const go = results.owner_account_exists &&
     (results.owner_public_full_access_key_count ?? 0) > 0 &&
     !results.escrow_account_exists
