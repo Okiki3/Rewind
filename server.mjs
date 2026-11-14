@@ -14,6 +14,11 @@ app.use('/rewind/sdk', (_request, response, next) => {
   response.setHeader('X-Content-Type-Options', 'nosniff')
   next()
 })
+// The .ts extension is otherwise misidentified as an MPEG transport stream.
+// This file contains public TypeScript declarations, not video content.
+app.get('/rewind/sdk/index.d.ts', (_request, response) => {
+  response.type('text/plain').sendFile(path.join(root, 'sdk', 'index.d.ts'))
+})
 app.use('/rewind/sdk', express.static(path.join(root, 'sdk'), { maxAge: '5m', index: false, dotfiles: 'deny' }))
 // Do not serve the website HTML as if a missing SDK JavaScript file existed.
 app.use('/rewind/sdk', (_request, response) => response.status(404).type('text/plain').send('SDK file not found'))

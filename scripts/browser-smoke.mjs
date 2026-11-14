@@ -81,6 +81,10 @@ try {
 
     const sdk = await page.request.get(base + 'sdk/index.js')
     console.log('SDK_HTTP', sdk.status(), 'TYPE', sdk.headers()['content-type'])
+    const sdkTypes = await page.request.get(base + 'sdk/index.d.ts')
+    if (!sdkTypes.ok() || !(sdkTypes.headers()['content-type'] || '').startsWith('text/plain')) {
+      throw new Error('TypeScript declarations were not served as text')
+    }
     if (sdk.headers()['access-control-allow-origin'] !== '*') {
       throw new Error('Public wallet SDK cannot be imported cross-origin')
     }
