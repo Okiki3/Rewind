@@ -305,44 +305,48 @@ function App() {
   async function settle(action: 'cancel' | 'release') {
     if (!transfer) return
     if (!accountId) return connectWallet()
+    const transferId = transfer.id
     setLoading(true)
+    let outcome: Awaited<ReturnType<typeof cancelTransfer>>
     try {
-      // Same popup reservation for cancellation and manual release.
       const popup = prepareWalletApproval()
-      let outcome: Awaited<ReturnType<typeof cancelTransfer>>
       try {
         setTx({
           kind: 'wallet',
           message: action === 'cancel'
-            ? 'Opening ' + getSelectedWalletName() + ' for refund approval. Your refund is not final until confirmed onchain.'
-            : 'Opening ' + getSelectedWalletName() + ' for release approval.',
+            ? 'Review the cancellation in your NEAR wallet. A refund is final only when confirmed onchain.'
+            : 'Review the delivery request in your NEAR wallet.',
         })
-        outcome = action === 'cancel'
-          ? await cancelTransfer(transfer.id)
-          : await releaseTransfer(transfer.id)
+        outcome = action === 'cancel' ? await cancelTransfer(transferId) : await releaseTransfer(transferId)
       } finally {
         finishWalletApproval(popup)
       }
-      const current = await viewTransfer(transfer.id)
-      setTransfer(current)
-      if (current && current.status === (action === 'cancel' ? 'Cancelled' : 'Released')) {
+    } catch (error) {
+      setTx({ kind: 'error', message: errorMessage(error) })
+      setLoading(false)
+      return
+    }
+    const hash = outcome.transaction.hash
+    setTx({ kind: 'submitted', message: 'Wallet transaction submitted. Checking the blockchain settlement result.', hash })
+    try {
+      const current = await viewTransfer(transferId)
+      if (current && activeRef.current === transferId) setTransfer(current)
+      if (current?.status === (action === 'cancel' ? 'Cancelled' : 'Released')) {
         setTx({
           kind: 'confirmed',
           message: action === 'cancel' ? 'Refund confirmed onchain.' : 'Delivery confirmed onchain.',
-          hash: outcome.transaction.hash,
+          hash,
         })
       } else if (current?.status === 'RefundFailed' || current?.status === 'DeliveryFailed') {
-        setTx({ kind: 'error', message: 'Payout failed onchain. Funds remain claimable in REWIND; use the available refund or retry action.', hash: outcome.transaction.hash })
-      } else {
-        setTx({ kind: 'submitted', message: 'Settlement is being verified. Check the onchain status.', hash: outcome.transaction.hash })
+        setTx({ kind: 'error', message: 'The settlement failed onchain. Use the refund or retry option if available.', hash })
       }
-      setHistory(await viewAccountTransfers(accountId))
-    } catch (error) {
-      setTx({ kind: 'error', message: errorMessage(error) })
-      await loadTransfer(transfer.id)
-    } finally {
-      setLoading(false)
+    } catch {
+      // A read-only RPC outage after wallet submission is NOT a failed
+      // transaction. Preserve the hash and allow background polling to refresh.
+      setTx({ kind: 'submitted', message: 'Request submitted. The network status is temporarily unavailable. Check the transaction hash before retrying.', hash })
     }
+    try { setHistory(await viewAccountTransfers(accountId)) } catch { /* Polling will retry. */ }
+    setLoading(false)
   }
 
   const remaining = useMemo(() => {
