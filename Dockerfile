@@ -33,7 +33,7 @@ COPY --from=build /app/dist ./dist
 # currently resolves the repository-level Dockerfile for both services.
 # Only the worker service runs it; website still runs server.mjs.
 COPY keeper/package.json ./keeper/package.json
-COPY keeper/index.mjs keeper/scan.mjs ./keeper/
+COPY keeper/index.mjs keeper/scan.mjs keeper/index-mainnet.mjs keeper/scan-mainnet.mjs ./keeper/
 RUN cd keeper && npm install --omit=dev --no-audit --no-fund
 # Railway's attached volume is root-owned. Worker needs permission to save
 # its disposable Testnet-only signing key. Web processes drop to "node" via CMD.
