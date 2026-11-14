@@ -75,7 +75,7 @@ try {
     console.log('BROWSER_REAL_RECIPIENT_VERIFIED')
 
     const heroText = await page.locator('.hero').innerText()
-    if (!heroText.includes('Catch mistakes before they cost you') ||
+    if (!heroText.includes('An extra layer of security for every transfer.') ||
         !heroText.includes('60-second cancellation window') ||
         heroText.toUpperCase().includes('WORKING DEMO') ||
         heroText.includes('00:42') || heroText.includes('60S PROTECTION')) {
@@ -87,6 +87,9 @@ try {
       throw new Error('Default network control is not a compact Testnet button')
     }
     const sendButton = page.locator('.hero-actions .button').first()
+    if ((await sendButton.innerText()).trim() !== 'Use Rewind →') {
+      throw new Error('Homepage primary action must be Use Rewind')
+    }
     const sendBounds = await sendButton.boundingBox()
     if (!sendBounds || sendBounds.y + sendBounds.height > 768) {
       throw new Error('Protected-send hero CTA falls below the desktop viewport')
