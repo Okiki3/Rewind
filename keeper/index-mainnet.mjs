@@ -48,6 +48,8 @@ if (!permission || permission.receiver_id !== contractId ||
 }
 console.info('Restricted Mainnet keeper signer verified: release() only, account ' + accountId);
 
+function loadCursor() {
+  try {
     if (!existsSync(cursorFile)) return 0;
     const data = JSON.parse(readFileSync(cursorFile, 'utf8'));
     if (data.contractId !== contractId || data.expectedCodeHash !== expectedHash) return 0;
