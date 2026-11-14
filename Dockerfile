@@ -10,8 +10,8 @@ COPY scripts ./scripts
 
 ARG VITE_NEAR_NETWORK_ID=testnet
 ARG VITE_NEAR_CONTRACT_ID
-ARG VITE_NEAR_NODE_URL=https://rpc.testnet.near.org
-ARG VITE_NEAR_WALLET_URL=https://wallet.testnet.near.org
+ARG VITE_NEAR_NODE_URL=https://rpc.testnet.fastnear.com
+ARG VITE_NEAR_WALLET_URL=https://testnet.mynearwallet.com
 ARG VITE_NEAR_HELPER_URL=https://helper.testnet.near.org
 ARG VITE_BASE_PATH=/rewind/
 ENV VITE_NEAR_NETWORK_ID=$VITE_NEAR_NETWORK_ID \
