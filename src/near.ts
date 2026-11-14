@@ -1,5 +1,4 @@
 import { actionCreators, setupWalletSelector, type FinalExecutionOutcome } from '@near-wallet-selector/core'
-import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet'
 import { setupModal } from '@near-wallet-selector/modal-ui'
 import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet'
 import { setupSender } from '@near-wallet-selector/sender'
@@ -27,9 +26,6 @@ const contractId = networkId === 'testnet' ? (import.meta.env.VITE_NEAR_CONTRACT
 const nodeUrl = networkId === 'mainnet'
   ? 'https://rpc.mainnet.fastnear.com'
   : (import.meta.env.VITE_NEAR_NODE_URL || 'https://rpc.testnet.fastnear.com')
-// Use MyNearWallet's real app host. The previous generic near.org wallet URL
-// was incompatible with this wallet selector connector.
-const walletUrl = networkId === 'mainnet' ? 'https://app.mynearwallet.com' : 'https://testnet.mynearwallet.com'
 const helperUrl = networkId === 'mainnet'
   ? 'https://helper.mainnet.near.org'
   : (import.meta.env.VITE_NEAR_HELPER_URL || 'https://helper.testnet.near.org')
@@ -37,11 +33,15 @@ const explorerUrl = networkId === 'mainnet' ? 'https://nearblocks.io' : 'https:/
 
 const selectorPromise = setupWalletSelector({
   network: { networkId, nodeUrl, helperUrl, explorerUrl, indexerUrl: '' },
+  // NEAR Mobile Wallet requires an explicit contract access key to complete
+  // sign-in and subsequent FunctionCall signing on Testnet.
+  ...(networkId === 'testnet' && contractId
+    ? { createAccessKeyFor: { contractId, methodNames: [] } }
+    : {}),
   modules: [
+    setupNearMobileWallet(),
     setupMeteorWallet(),
     setupSender(),
-    setupNearMobileWallet(),
-    setupMyNearWallet({ walletUrl }),
   ],
 })
 
