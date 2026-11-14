@@ -123,6 +123,51 @@ try {
     if (!/Meteor|Sender|MyNearWallet|NEAR Mobile|Connect/i.test(chooser)) {
       throw new Error('Wallet chooser not visible')
     }
+    // Meteor on Android must use the app-specific bridge, not the web redirect.
+    const meteorMobilePage = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      userAgent: 'Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 Chrome/153.0 Mobile Safari/537.36',
+    })
+    await meteorMobilePage.addInitScript(() => {
+      window.__is_running_in_meteor_wallet_app__ = true
+      window.__meteorMessages = []
+      window.ReactNativeWebView = {
+        postMessage: (message) => {
+          const data = JSON.parse(message)
+          window.__meteorMessages.push(data.method)
+          const response = data.method === 'sign_in'
+            ? [{ accountId: 'sender.testnet', publicKey: 'ed25519:11111111111111111111111111111111' }]
+            : true
+          setTimeout(() => window.dispatchEvent(
+            new MessageEvent('message', { data: { nonce: data.nonce, response } }),
+          ), 10)
+        },
+      }
+    })
+    await meteorMobilePage.goto(base, { waitUntil: 'domcontentloaded' })
+    await meteorMobilePage.getByRole('button', { name: /connect near wallet/i }).click()
+    await meteorMobilePage.getByRole('button', { name: /sender\\.te.*disconnect/i })
+      .waitFor({ timeout: 12000 })
+    const calledMeteor = await meteorMobilePage.evaluate(() => window.__meteorMessages)
+    if (!calledMeteor.includes('ping') || !calledMeteor.includes('sign_in')) {
+      throw new Error('Native Meteor mobile bridge did not receive ping and sign_in: ' + calledMeteor)
+    }
+    console.log('METEOR_APP_NATIVE_BRIDGE_SIGNIN_PASS')
+    await meteorMobilePage.close()
+
+    const externalAndroidPage = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      userAgent: 'Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 Chrome/153.0 Mobile Safari/537.36',
+    })
+    await externalAndroidPage.goto(base, { waitUntil: 'domcontentloaded' })
+    await externalAndroidPage.getByRole('button', { name: /connect near wallet/i }).click()
+    await externalAndroidPage.getByRole('button', { name: /Copy REWIND link for Meteor/i })
+      .waitFor({ timeout: 10000 })
+    const meteorWebInModal = await externalAndroidPage.locator('.nws-modal').getByText('Meteor Wallet', {exact:true}).count()
+    if (meteorWebInModal) throw Error('External mobile browser wrongly offers Meteor web connector')
+    console.log('METEOR_EXTERNAL_ANDROID_NO_WEB_REDIRECT_PASS')
+    await externalAndroidPage.close()
+
     // Simulate the real Send click with a connected MyNearWallet account.
     // The wallet asks an RPC for a block before it opens its approval popup;
     // intercept the RPC and delay it so a missing pre-open is reproducible.
