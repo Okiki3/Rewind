@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   cancelTransfer,
   connectWallet,
@@ -17,7 +17,11 @@ import {
   viewTransfer,
 } from './near'
 import type { Transfer, TxState } from './types'
-import { preflight, isNearAccountId, type Review } from '../sdk/index'
+import { preflight, isNearAccountId, parseNearAmount, type Review } from '../sdk/index'
+import {
+  identifyCreatedPayment, findNewTransfer, recordKey, loadPaymentRecords,
+  storePaymentHash, formatPaymentTime,
+} from './transfer-records'
 
 const initialTx: TxState = { kind: 'idle', message: '' }
 
@@ -51,19 +55,34 @@ function App() {
   const [threshold, setThreshold] = useState(() => localStorage.getItem('rewind-threshold-near') || '')
   const [lookupId, setLookupId] = useState('')
   const [transfer, setTransfer] = useState<Transfer | null>(null)
+  const [activeTransferId, setActiveTransferId] = useState<string | null>(null)
+  const [trackingNewPayment, setTrackingNewPayment] = useState(false)
+  const [paymentHashes, setPaymentHashes] = useState<Record<string, string>>({})
+  const [pendingHash, setPendingHash] = useState<string | null>(null)
+  const activeRef = useRef<string | null>(null)
+  const trackGeneration = useRef(0)
   const [history, setHistory] = useState<Transfer[]>([])
   const [tx, setTx] = useState<TxState>(initialTx)
   const [loading, setLoading] = useState(false)
   const [copiedSdk, setCopiedSdk] = useState(false)
   const [clock, setClock] = useState(Date.now())
 
+  const localRecordsKey = useMemo(() => recordKey(getNetworkId(), getContractId(), accountId), [accountId])
+
+  const selectActive = useCallback((id: string, snapshot: Transfer | null = null) => {
+    activeRef.current = id
+    setActiveTransferId(id)
+    setLookupId(id)
+    setTransfer(snapshot)
+    setTrackingNewPayment(snapshot === null)
+    if (accountId) {
+      try { localStorage.setItem(localRecordsKey + ':last', id) } catch { /* Storage is optional. */ }
+    }
+  }, [accountId, localRecordsKey])
+
   useEffect(() => {
-    getAccountId().then((id) => {
-      setAccountId(id)
-      if (id) viewAccountTransfers(id).then(setHistory).catch(() => setHistory([]))
-    })
+    void getAccountId().then(setAccountId).catch(() => undefined)
     const timer = window.setInterval(() => setClock(Date.now()), 1_000)
-    // Update the account display when an injected wallet connects in place.
     const accountTimer = window.setInterval(() => {
       void getAccountId().then((id) => setAccountId((old) => id === old ? old : id)).catch(() => undefined)
     }, 1_500)
@@ -71,28 +90,74 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!accountId) return
-    const poll = window.setInterval(() => {
-      void viewAccountTransfers(accountId).then(setHistory).catch(() => undefined)
-      if (transfer?.id) void viewTransfer(transfer.id).then(setTransfer).catch(() => undefined)
-    }, 5_000)
-    return () => window.clearInterval(poll)
-  }, [accountId, transfer?.id])
+    // Transaction creation hashes are not stored in the onchain Transfer
+    // struct. Browser-side records are scoped per network, contract and wallet.
+    setPaymentHashes(loadPaymentRecords(localStorage, localRecordsKey))
+    setPendingHash(null)
+    setTransfer(null)
+    setActiveTransferId(null)
+    setTrackingNewPayment(false)
+    activeRef.current = null
+    trackGeneration.current += 1
+    if (!accountId) { setHistory([]); return }
+    try {
+      const last = localStorage.getItem(localRecordsKey + ':last')
+      if (last && /^\d+$/.test(last)) {
+        activeRef.current = last
+        setActiveTransferId(last)
+        setLookupId(last)
+        setTrackingNewPayment(true)
+      }
+    } catch { /* Browser storage can be disabled. */ }
+  }, [accountId, localRecordsKey])
+
+  useEffect(() => {
+    if (!accountId && !activeTransferId) return
+    let alive = true
+    const poll = async () => {
+      if (accountId) {
+        try {
+          const latest = await viewAccountTransfers(accountId)
+          if (alive) setHistory(latest)
+        } catch { /* A transient RPC issue must not delete displayed history. */ }
+      }
+      if (activeTransferId) {
+        try {
+          const onchain = await viewTransfer(activeTransferId)
+          if (alive && activeRef.current === activeTransferId && onchain) {
+            setTransfer(onchain)
+            setTrackingNewPayment(false)
+          }
+        } catch { /* Keep the last verified state while RPC is unavailable. */ }
+      }
+    }
+    void poll()
+    const timer = window.setInterval(() => { void poll() }, 3_000)
+    return () => { alive = false; window.clearInterval(timer) }
+  }, [accountId, activeTransferId])
 
   const loadTransfer = useCallback(async (id = lookupId) => {
-    if (!id.trim()) return
+    const selected = id.trim()
+    if (!/^\d+$/.test(selected)) {
+      setTx({ kind: 'error', message: 'Enter a valid transfer number.' })
+      return
+    }
+    const generation = ++trackGeneration.current
     setLoading(true)
     try {
-      const found = await viewTransfer(id.trim())
-      setTransfer(found)
-      setLookupId(id.trim())
-      if (!found) setTx({ kind: 'error', message: `Transfer #${id} was not found.` })
+      const found = await viewTransfer(selected)
+      if (generation !== trackGeneration.current) return
+      if (found) {
+        selectActive(selected, found)
+      } else {
+        setTx({ kind: 'error', message: `Transfer #${selected} was not found.` })
+      }
     } catch (error) {
-      setTx({ kind: 'error', message: errorMessage(error) })
+      if (generation === trackGeneration.current) setTx({ kind: 'error', message: errorMessage(error) })
     } finally {
-      setLoading(false)
+      if (generation === trackGeneration.current) setLoading(false)
     }
-  }, [lookupId])
+  }, [lookupId, selectActive])
 
   async function submitCreate(event: FormEvent) {
     event.preventDefault()
