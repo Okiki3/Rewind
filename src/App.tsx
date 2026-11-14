@@ -516,12 +516,15 @@ function App() {
             <input aria-label="Saved recipient to compare" value={savedRecipient} onChange={(e) => { setSavedRecipient(e.target.value); localStorage.setItem('rewind-saved-recipient', e.target.value); setReview(null) }} placeholder="e.g. alice.testnet" />
             <label>Optional amount alert above (NEAR)<input aria-label="Amount warning threshold" value={threshold} onChange={(e) => { setThreshold(e.target.value); localStorage.setItem('rewind-threshold-near', e.target.value); setReview(null) }} placeholder="e.g. 1" inputMode="decimal" /></label>
           </details>
-          {review && <div className="preflight-review" role="status">
-            <strong>{isMainnetPreview ? (review.valid ? 'Mainnet recipient check complete' : 'Mainnet recipient could not be verified') : review.warnings.some((warning) => warning.code === 'unverified') ? 'Verification temporarily unavailable' : review.warnings.some((warning) => warning.code === 'missing_account' || warning.code === 'lookalike') ? 'Check the recipient address' : review.warnings.length ? 'Additional payment checks' : 'Recipient verified. Review before sending.'}</strong>
-            {review.warnings.map((warning, index) => <p key={index}>{warning.message}</p>)}
-            <p>{isMainnetPreview ? 'Read-only review:' : "You're sending"} <strong>{amount} NEAR</strong> {isMainnetPreview ? 'for' : 'to'} <strong>{review.recipient}</strong>. {isMainnetPreview && 'No payment will be submitted.'}</p>
-            {!review.valid && <p>{review.warnings.some((warning) => warning.code === 'unverified') ? 'REWIND could not check the network. No payment has been submitted. Please retry address verification.' : 'This recipient account was not found or is invalid. Check it before continuing.'}</p>}
-            {!review.valid && <button className="retry-check" type="button" onClick={() => { setReview(null); setTx(initialTx) }}>Retry address check</button>}
+          {review && <div className="preflight-review" role={review.valid ? 'status' : 'alert'} data-invalid={!review.valid}>
+            {review.valid ? <>
+              <strong>{review.warnings.some((warning) => warning.code === 'lookalike') ? 'Check the recipient address' : review.warnings.length ? 'Review before sending' : isMainnetPreview ? 'Mainnet recipient verified' : 'Recipient verified'}</strong>
+              {review.warnings.map((warning, index) => <p key={index}>{warning.message}</p>)}
+              <p>{isMainnetPreview ? 'Read-only review:' : "You're sending"} <strong>{amount} NEAR</strong> {isMainnetPreview ? 'for' : 'to'} <strong>{review.recipient}</strong>. {isMainnetPreview && 'No payment will be submitted.'}</p>
+            </> : <>
+              <strong>{review.warnings.find((warning) => ['invalid_address', 'missing_account', 'unverified'].includes(warning.code))?.message || 'Unable to verify this recipient. Transfer blocked.'}</strong>
+              {review.warnings.some((warning) => warning.code === 'unverified') && <button className="retry-check" type="button" onClick={() => { setReview(null); setTx(initialTx) }}>Retry verification</button>}
+            </>}
           </div>}
           <button className="primary form-submit" disabled={loading || (!isMainnetPreview && !!accountId && (!isNearAccountId(recipient.trim().toLowerCase()) || (review !== null && !review.valid)))}>{isMainnetPreview ? 'Check Mainnet recipient' : accountId ? (review?.valid ? 'Confirm and send NEAR' : 'Review payment') : 'Connect wallet to begin'} <span>→</span></button>
           <small className="form-help">{isMainnetPreview ? 'Mainnet is an address-check preview on this page.' : 'A REWIND-protected payment can be cancelled by its sender for 60 seconds after the contract accepts it.'}</small>
