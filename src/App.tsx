@@ -122,7 +122,7 @@ function App() {
       const popup = prepareWalletApproval()
       let outcome: Awaited<ReturnType<typeof createTransfer>>
       try {
-        setTx({ kind: 'wallet', message: 'Opening ' + getSelectedWalletName() + ' for payment approval. Check the wallet window or browser extension.' })
+        setTx({ kind: 'wallet', message: 'Submitting through ' + getSelectedWalletName() + '. Your wallet may use an existing signing permission or request confirmation. Check your activity before retrying.' })
         outcome = await createTransfer(recipient.trim().toLowerCase(), amount)
       } finally {
         finishWalletApproval(popup)
@@ -287,10 +287,11 @@ function App() {
             <label>Optional amount alert above (NEAR)<input aria-label="Amount warning threshold" value={threshold} onChange={(e) => { setThreshold(e.target.value); localStorage.setItem('rewind-threshold-near', e.target.value); setReview(null) }} placeholder="e.g. 1" inputMode="decimal" /></label>
           </details>
           {review && <div className="preflight-review" role="status">
-            <strong>{review.warnings.length ? 'Possible mistake detected' : 'Review before sending'}</strong>
+            <strong>{review.warnings.some((warning) => warning.code === 'unverified') ? 'Verification temporarily unavailable' : review.warnings.some((warning) => warning.code === 'missing_account' || warning.code === 'lookalike') ? 'Check the recipient address' : review.warnings.length ? 'Additional payment checks' : 'Recipient verified. Review before sending.'}</strong>
             {review.warnings.map((warning, index) => <p key={index}>{warning.message}</p>)}
             <p>You're sending <strong>{amount} NEAR</strong> to <strong>{review.recipient}</strong>.</p>
-            {!review.valid && <p>This account wasn't found or the address is invalid. Check it before continuing.</p>}
+            {!review.valid && <p>{review.warnings.some((warning) => warning.code === 'unverified') ? 'REWIND could not check the network. No payment has been submitted. Please retry address verification.' : 'This recipient account was not found or is invalid. Check it before continuing.'}</p>}
+            {!review.valid && <button className="retry-check" type="button" onClick={() => { setReview(null); setTx(initialTx) }}>Retry address check</button>}
           </div>}
           <button className="primary form-submit" disabled={loading || (!!accountId && (!isNearAccountId(recipient.trim().toLowerCase()) || (review !== null && !review.valid)))}>{accountId ? (review?.valid ? 'Confirm and send NEAR' : 'Review payment') : 'Connect wallet to begin'} <span>→</span></button>
           <small className="form-help">Protected by REWIND. If you send the wrong amount or enter the wrong address, you can cancel within 60 seconds.</small>
@@ -304,17 +305,19 @@ function App() {
           </form>
           {transfer ? (
             <article className="card">
-              <div className="card-head"><span>TRANSFER #{transfer.id}</span><strong data-status={transfer.status}>{statusLabel(transfer.status)}</strong></div>
+              <div className="card-head"><span>TRANSFER #{transfer.id}</span><strong data-status={transfer.status}>{statusLabel(transfer.status, clock >= Number(transfer.expires_at_ms))}</strong></div>
               <div className="amount">{formatNear(transfer.amount)} <small>NEAR</small></div>
               <dl>
                 <div><dt>Sender</dt><dd>{transfer.sender}</dd></div>
                 <div><dt>Recipient</dt><dd>{transfer.recipient}</dd></div>
-                <div><dt>Protection</dt><dd>{remaining}</dd></div>
+                <div><dt>Protection</dt><dd>{transfer.status === 'Released' ? 'Delivered to recipient' : transfer.status === 'Cancelled' ? 'Refunded to sender' : remaining}</dd></div>
               </dl>
-              {['Refunding', 'Releasing'].includes(transfer.status) && <p className="pending">Settlement is still processing. Funds are not final until the callback succeeds.</p>}
+              {['Refunding', 'Releasing'].includes(transfer.status) && <p className="pending">Settlement is processing. The blockchain callback will confirm the result.</p>}
+              {transfer.status === 'Pending' && clock >= Number(transfer.expires_at_ms) && <p className="pending">The 60-second protection period has ended. Automatic delivery is being requested. Refresh the status to see when it completes.</p>}
+              {transfer.status === 'DeliveryFailed' && <p className="pending">Automatic delivery failed. The sender can request a refund, or delivery can be retried.</p>}
               <div className="actions">
-                <button onClick={() => settle('cancel')} disabled={!canCancel || loading}>Cancel transfer</button>
-                <button onClick={() => settle('release')} disabled={!canRelease || loading}>Retry delivery</button>
+                {canCancel && <button onClick={() => settle('cancel')} disabled={loading}>{transfer.status === 'DeliveryFailed' || transfer.status === 'RefundFailed' ? 'Request refund' : 'Cancel transfer'}</button>}
+                {canRelease && <button onClick={() => settle('release')} disabled={loading}>{transfer.status === 'DeliveryFailed' ? 'Retry delivery' : 'Release now'}</button>}
               </div>
             </article>
           ) : <div className="empty"><span>⌁</span><p>Track a payment</p><small>Enter its transfer ID to check the status or cancel while eligible.</small></div>}
@@ -324,7 +327,7 @@ function App() {
       {accountId && <section className="history">
         <div className="panel-title"><span>HISTORY</span><div><h2>Recent transfers</h2><p>Payments linked to your connected wallet.</p></div></div>
         {history.length ? <div className="history-grid">{history.map((item) => <button key={item.id} onClick={() => void loadTransfer(item.id)}>
-          <span>#{item.id}</span><strong>{formatNear(item.amount)} NEAR</strong><em>{statusLabel(item.status)}</em><small>{item.sender === accountId ? `to ${short(item.recipient)}` : `from ${short(item.sender)}`}</small>
+          <span>#{item.id}</span><strong>{formatNear(item.amount)} NEAR</strong><em>{statusLabel(item.status, clock >= Number(item.expires_at_ms))}</em><small>{item.sender === accountId ? `to ${short(item.recipient)}` : `from ${short(item.sender)}`}</small>
         </button>)}</div> : <p className="history-empty">No REWIND transfers found for this account.</p>}
       </section>}
 
@@ -363,14 +366,15 @@ function App() {
         <a className="button primary" href="#app">Send NEAR on Testnet <span>↑</span></a>
       </section>
 
-      {tx.kind !== 'idle' && <aside className={`toast ${tx.kind}`}><button onClick={() => setTx(initialTx)}>×</button><strong>{tx.kind === 'error' ? 'Not confirmed' : 'Transaction status'}</strong><p>{tx.message}</p>{tx.kind === 'wallet' && <small>Nothing opened? Check your browser's blocked-popup icon and any wallet extension window. Do not send again until you check your wallet activity.</small>}{tx.hash && <a href={explorerTx(tx.hash)} target="_blank" rel="noreferrer">View {short(tx.hash)} on NEAR explorer ↗</a>}</aside>}
+      {tx.kind !== 'idle' && <aside className={`toast ${tx.kind}`}><button onClick={() => setTx(initialTx)}>×</button><strong>{tx.kind === 'error' ? 'Not confirmed' : 'Transaction status'}</strong><p>{tx.message}</p>{tx.kind === 'wallet' && <small>Some wallets sign through an existing permission without a popup. Check your wallet transactions and REWIND transfer history before trying to send again.</small>}{tx.hash && <a href={explorerTx(tx.hash)} target="_blank" rel="noreferrer">View {short(tx.hash)} on NEAR explorer ↗</a>}</aside>}
 
       <footer><a className="brand footer-brand" href={import.meta.env.BASE_URL}><span className="brand-mark">↶</span> REWIND</a><div><span>Network: {getNetworkId()}</span><span>Contract: {getContractId() || 'not configured'}</span></div><p>Testnet demo. Experimental and unaudited.<br />Never send Mainnet funds.</p></footer>
     </main>
   )
 }
 
-function statusLabel(status: Transfer['status']) {
+function statusLabel(status: Transfer['status'], expired = false) {
+  if (status === 'Pending' && expired) return 'Awaiting delivery'
   const labels: Record<Transfer['status'], string> = {
     Pending: 'Protected',
     Refunding: 'Refunding',

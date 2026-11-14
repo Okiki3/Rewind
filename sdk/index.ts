@@ -88,42 +88,67 @@ export async function preflight(options: PreflightOptions): Promise<Review> {
   if (options.warnAboveNear && amount > BigInt(parseNearAmount(options.warnAboveNear))) {
     warnings.push({ code: 'large_amount', message: 'This amount exceeds your configured safety threshold of ' + options.warnAboveNear + ' NEAR.' });
   }
-  const rpcUrl = options.rpcUrl || (options.network === 'mainnet' ? 'https://rpc.mainnet.near.org' : 'https://rpc.testnet.near.org');
+  // The legacy near.org RPC endpoints were deprecated. Check with current
+  // Testnet providers. Only an authoritative UNKNOWN_ACCOUNT response means
+  // an account is missing; a timeout or RPC error must not be called a typo.
+  const rpcUrls = options.rpcUrl
+    ? [options.rpcUrl]
+    : options.network === 'testnet'
+      ? ['https://rpc.testnet.fastnear.com', 'https://near-testnet.drpc.org']
+      : ['https://rpc.mainnet.fastnear.com', 'https://near.drpc.org'];
+  const fetcher = options.fetcher || fetch;
   let verifiedAccount = false;
-  try {
-    const fetcher = options.fetcher || fetch;
-    const response = await fetcher(rpcUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', id: 'rewind-account-check', method: 'query',
-        params: { request_type: 'view_account', finality: 'final', account_id: recipient },
-      }),
-    });
-    if (!response.ok) throw new Error('RPC HTTP ' + response.status);
-    const result = await response.json() as {
-      result?: { code_hash?: string };
-      error?: { cause?: { name?: string }; message?: string };
-    };
-    if (result.error) {
-      if (result.error.cause?.name === 'UNKNOWN_ACCOUNT') {
-        warnings.push({ code: 'missing_account', message: 'Recipient account was not found on ' + options.network + '. Check for a typo.' });
-      } else {
-        throw new Error(result.error.message || 'Unable to verify recipient');
+  let verificationCompleted = false;
+
+  for (const rpcUrl of rpcUrls) {
+    try {
+      const response = await fetcher(rpcUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 'rewind-account-check', method: 'query',
+          params: { request_type: 'view_account', finality: 'final', account_id: recipient },
+        }),
+        // Never leave the Send form hanging while checking an unavailable RPC.
+        ...(!options.fetcher ? { signal: AbortSignal.timeout(7_000) } : {}),
+      });
+      if (!response.ok) throw new Error('RPC HTTP ' + response.status);
+      const result = await response.json() as {
+        result?: { code_hash?: string };
+        error?: { name?: string; cause?: { name?: string }; data?: { name?: string }; message?: string };
+      };
+      if (result.error) {
+        const errorText = [
+          result.error.name, result.error.cause?.name,
+          result.error.data?.name, result.error.message,
+        ].filter(Boolean).join(' ');
+        if (/UNKNOWN_ACCOUNT|UNKNOWN_ACCOUNT_ID|does not exist|UnknownAccount/i.test(errorText)) {
+          warnings.push({ code: 'missing_account', message: 'This NEAR account does not exist on ' + options.network + '. Check the spelling before sending.' });
+          verificationCompleted = true;
+          break;
+        }
+        throw new Error(result.error.message || 'RPC could not verify account');
       }
-    } else if (result.result) {
+      if (!result.result || typeof result.result.code_hash !== 'string') {
+        throw new Error('Unexpected account response');
+      }
       verifiedAccount = true;
-      // An account with an empty contract has the canonical empty code hash.
-      if (result.result.code_hash && result.result.code_hash !== '11111111111111111111111111111111') {
+      verificationCompleted = true;
+      if (result.result.code_hash !== '11111111111111111111111111111111') {
         warnings.push({ code: 'contract_account', message: 'This recipient is a smart contract account. Only send if you know it can receive the funds.' });
       }
-    } else {
-      throw new Error('Malformed RPC response');
+      break;
+    } catch {
+      // Try a different supported public RPC provider before giving up.
     }
-  } catch {
-    warnings.push({ code: 'unverified', message: 'Could not verify the recipient onchain. Verify the address before sending.' });
   }
-  return { recipient, warnings, valid: !warnings.some((warning) => warning.code === 'missing_account'), verifiedAccount };
+  if (!verificationCompleted) {
+    warnings.push({ code: 'unverified', message: 'Address verification is temporarily unavailable. Please retry the check before sending. Your payment has not been submitted.' });
+  }
+  return {
+    recipient, warnings, verifiedAccount,
+    valid: !warnings.some((warning) => warning.code === 'missing_account' || warning.code === 'unverified'),
+  };
 }
 
 export function buildProtectedSendTransaction(contractId: string, recipient: string, amountNear: string): ContractCall {

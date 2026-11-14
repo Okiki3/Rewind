@@ -56,7 +56,7 @@ const keyStore = new keyStores.InMemoryKeyStore();
 await keyStore.setKey(networkId, credentials.accountId, KeyPair.fromString(credentials.privateKey));
 const near = await connect({
   networkId, keyStore,
-  nodeUrl: process.env.NEAR_RPC_URL || 'https://rpc.' + networkId + '.near.org',
+  nodeUrl: process.env.NEAR_RPC_URL || 'https://rpc.' + networkId + '.fastnear.com',
 });
 const account = await near.account(credentials.accountId);
 for (let retry = 0; retry < 30; retry++) {

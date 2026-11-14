@@ -36,6 +36,45 @@ describe('REWIND wallet SDK', () => {
     expect(result.warnings.map((x) => x.code)).toContain('missing_account');
     expect(result.valid).toBe(false);
   });
+  it('uses supported Testnet RPC instead of deprecated near.org addresses', async () => {
+    const requested: string[] = [];
+    const checked = await preflight({
+      recipient: 'afrolite.testnet', amountNear: '0.5', network: 'testnet',
+      fetcher: async (input) => {
+        requested.push(String(input));
+        return verified();
+      },
+    });
+    expect(requested).toEqual(['https://rpc.testnet.fastnear.com']);
+    expect(checked.valid).toBe(true);
+    expect(checked.verifiedAccount).toBe(true);
+    expect(checked.warnings).toHaveLength(0);
+  });
+  it('falls back to a second RPC on a deprecated endpoint error', async () => {
+    const called: string[] = [];
+    const checked = await preflight({
+      recipient: 'afrolite.testnet', amountNear: '0.1', network: 'testnet',
+      fetcher: async (input) => {
+        called.push(String(input));
+        return called.length === 1
+          ? { ok: true, json: async () => ({ error: { code: -429, message: 'RPC deprecated' } }) } as Response
+          : verified();
+      },
+    });
+    expect(called).toEqual(['https://rpc.testnet.fastnear.com', 'https://near-testnet.drpc.org']);
+    expect(checked.valid).toBe(true);
+    expect(checked.verifiedAccount).toBe(true);
+    expect(checked.warnings).toHaveLength(0);
+  });
+  it('does not call an unresponsive RPC a suspicious recipient or allow an unverified send', async () => {
+    const checked = await preflight({
+      recipient: 'afrolite.testnet', amountNear: '0.1', network: 'testnet',
+      fetcher: async () => { throw new Error('HTTP 429'); },
+    });
+    expect(checked.valid).toBe(false);
+    expect(checked.warnings).toEqual([expect.objectContaining({ code: 'unverified' })]);
+    expect(checked.warnings[0].message).toMatch(/temporarily unavailable/);
+  });
   it('flags unusual amounts only against a supplied threshold', async () => {
     const result = await preflight({
       recipient: 'winner.testnet', amountNear: '10', warnAboveNear: '1',

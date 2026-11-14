@@ -12,7 +12,10 @@ export { formatNear } from './amount'
 
 const networkId = import.meta.env.VITE_NEAR_NETWORK_ID || 'testnet'
 const contractId = import.meta.env.VITE_NEAR_CONTRACT_ID || ''
-const nodeUrl = import.meta.env.VITE_NEAR_NODE_URL || `https://rpc.${networkId}.near.org`
+// Legacy near.org endpoints return a deprecation -429 in production.
+// This URL is also passed to injected wallets and transaction signers.
+const nodeUrl = import.meta.env.VITE_NEAR_NODE_URL ||
+  (networkId === 'testnet' ? 'https://rpc.testnet.fastnear.com' : 'https://rpc.mainnet.fastnear.com')
 // Use MyNearWallet's real app host. The previous generic near.org wallet URL
 // was incompatible with this wallet selector connector.
 const walletUrl = networkId === 'mainnet' ? 'https://app.mynearwallet.com' : 'https://testnet.mynearwallet.com'
