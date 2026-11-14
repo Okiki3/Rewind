@@ -4,9 +4,9 @@
 
 REWIND is an experimental, wallet-integrable payment protection protocol for **NEAR**. A wallet can check a recipient before signing, then route a protected payment through an onchain contract. The sender has a fixed **60-second window** to cancel. If the payment is not cancelled, a permissionless worker requests delivery after expiry; the contract decides when and to whom funds are paid.
 
-> **Status: working NEAR Testnet prototype, not a production financial product.** This is not a way to reverse ordinary NEAR transfers. REWIND can protect only transfers made *through its contract*. The code has not received an independent professional smart-contract audit. Use Testnet funds only.
+> **Status: working NEAR Testnet prototype plus a deployed, initialized, PAUSED NEAR Mainnet V2 candidate. NOT a production financial product.** This is not a way to reverse ordinary NEAR transfers. REWIND can protect only transfers made *through its contract*. The code has not received an independent professional smart-contract audit. Use Testnet funds only.
 
-**Try it:** [Live REWIND app](https://afrolitehub.com/rewind) · [Developer SDK](sdk/README.md) · [Hackathon judge guide](HACKATHON.md) · [Security review (draft PR #11)](https://github.com/Okiki3/Rewind/pull/11)
+**Try it:** [Live REWIND app](https://afrolitehub.com/rewind) · [Developer SDK](sdk/README.md) · [Hackathon judge guide](HACKATHON.md) · [Mainnet deployment proof](MAINNET_DEPLOYMENT_EVIDENCE.md) · [Security review (draft PR #11)](https://github.com/Okiki3/Rewind/pull/11)
 
 ### Testnet and Mainnet in one website
 
@@ -17,7 +17,7 @@ The website includes a network selector in the navigation. Switching networks re
 | [NEAR Testnet](https://afrolitehub.com/rewind/?network=testnet) | **Fully interactive prototype** | Connect a compatible Testnet wallet, check addresses, send protected test tokens, cancel in the 60-second window, and track confirmed delivery |
 | [NEAR Mainnet preview](https://afrolitehub.com/rewind/?network=mainnet) | **Read-only preview** | Verify whether an account exists on Mainnet and review address warnings; **no wallet signing, escrow deposits, withdrawals or Mainnet funds** |
 
-**Mainnet protection is not live.** No owner-controlled, security-reviewed Mainnet escrow has been deployed. Selecting Mainnet does **not** convert Testnet funds or expose a contract address for real deposits. Both network environments are represented in the same frontend, but real-money payments remain deliberately disabled until custody, dependency, storage-economics and independent audit requirements are completed.
+**Mainnet protection is not live.** The owner has deployed a separate **paused** V2 contract candidate at [`afrolite-rewind-261114.near`](https://nearblocks.io/address/afrolite-rewind-261114.near). Its exact onchain hash, owner and paused state were confirmed on 14 Nov 2026 after deployment (see [proof](MAINNET_DEPLOYMENT_EVIDENCE.md)). This is **not** approval for payments: the public site intentionally keeps Mainnet signing and deposits disabled pending independent audit, key-custody review, keeper validation and controlled settlement testing. Selecting Mainnet never converts Testnet funds into real funds.
 
 Developers must continue to use the **Testnet SDK and contract account** for the current demonstration. An unaudited Mainnet contract or a substituted Testnet address is not a valid production integration.
 
@@ -79,7 +79,7 @@ The keeper's own account signs release requests, **not** user transfers. It cann
 - **Current fixed-window contract:** `rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet`
 - **Contract explorer:** [Open on NearBlocks](https://testnet.nearblocks.io/address/rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet)
 - **Correction period:** 60 seconds, enforced onchain
-- **Deployment status:** No REWIND Mainnet contract has been authorized or launched as part of this prototype
+- **V2 Mainnet deployment (separate account, not active for payments):** [`afrolite-rewind-261114.near`](https://nearblocks.io/address/afrolite-rewind-261114.near), initialized `owner_id=afrolite.near`, `paused=true`. See [transaction, exact code hash and source](MAINNET_DEPLOYMENT_EVIDENCE.md).
 
 Historical, verified examples from this **current** contract:
 
