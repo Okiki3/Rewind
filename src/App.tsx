@@ -434,10 +434,23 @@ function App() {
       <nav>
         <a className="brand" href={import.meta.env.BASE_URL} aria-label="REWIND home"><span className="brand-mark">↶</span> REWIND <b>NEAR</b></a>
         <div className="nav-links"><a href="#how-it-works">How it works</a><a href="#app">{isMainnetPreview ? 'Address check' : 'Send NEAR'}</a><a href="#developers">SDK</a></div>
-        <div className="network-toggle" role="group" aria-label="NEAR network">
-          <span>Network</span>
-          <a href={getNetworkSwitchHref('testnet')} aria-current={!isMainnetPreview ? 'page' : undefined}>Testnet</a>
-          <a href={getNetworkSwitchHref('mainnet')} aria-current={isMainnetPreview ? 'page' : undefined}>Mainnet <small>Preview</small></a>
+        <div className="network-switcher">
+          <span className="network-switcher-title">Network</span>
+          <button
+            type="button"
+            className="network-switch"
+            role="switch"
+            aria-label={isMainnet ? 'Mainnet selected. Switch to Testnet' : 'Testnet selected. Switch to Mainnet preview'}
+            aria-checked={isMainnet}
+            title={isMainnet ? 'Switch to working NEAR Testnet' : 'Switch to NEAR Mainnet preview (no payments)'}
+            onClick={() => { window.location.assign(getNetworkSwitchHref(isMainnet ? 'testnet' : 'mainnet')) }}
+          >
+            <span className="network-switch-track" aria-hidden="true">
+              <span className="network-switch-thumb" />
+              <span className="network-switch-label network-switch-testnet">Testnet</span>
+              <span className="network-switch-label network-switch-mainnet">Mainnet</span>
+            </span>
+          </button>
         </div>
         {isMainnetPreview
           ? <span className="nav-preview-label">Read-only</span>
