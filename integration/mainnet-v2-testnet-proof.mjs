@@ -132,7 +132,7 @@ async function main() {
     contractId, methodName: 'set_paused', args: { paused: false },
     gas: tgas, attachedDeposit: 0n,
   });
-  assert.equal(await view('is_paused'), false, 'Only test's contract owner enables Testnet payments');
+  assert.equal(await view('is_paused'), false, 'Only the signed contract owner enables Testnet payments');
   console.log('REWIND_V2_CONTRACT=' + contractId);
   console.log('REWIND_V2_CODE_HASH=' + codeHash);
   console.log('REWIND_V2_WASM_SHA256=' + wasmSha256);
