@@ -1,7 +1,7 @@
 name: REWIND browser smoke
 on:
   push:
-    branches: ["fix/clear-homepage-public-sdk", "main"]
+    branches: ["fix/sdk-types-mime", "main"]
 jobs:
   smoke:
     runs-on: ubuntu-latest
