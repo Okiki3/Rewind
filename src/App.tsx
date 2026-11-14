@@ -52,6 +52,9 @@ const SDK_SNIPPET = [
 
 function App() {
   const isMainnetPreview = getNetworkId() === 'mainnet'
+  const [walletHelpVisible, setWalletHelpVisible] = useState(false)
+  const isExternalMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+    !(window as Window & { __is_running_in_meteor_wallet_app__?: boolean }).__is_running_in_meteor_wallet_app__
   const paymentsEnabled = isProtectedPaymentEnabled()
   const [accountId, setAccountId] = useState('')
   const [recipient, setRecipient] = useState('')
@@ -453,8 +456,17 @@ function App() {
         </div>
         {!isMainnetPreview && (accountId
           ? <button className="wallet" onClick={signOut}>{short(accountId)} · disconnect</button>
-          : <button className="wallet" onClick={() => { void connectWallet().catch((error: unknown) => setTx({ kind: 'error', message: errorMessage(error) })) }}>Connect NEAR wallet</button>)}
+          : <button className="wallet" onClick={() => { setWalletHelpVisible(true); void connectWallet().catch((error: unknown) => setTx({ kind: 'error', message: errorMessage(error) })) }}>Connect NEAR wallet</button>)}
       </nav>
+      {walletHelpVisible && isExternalMobile && !isMainnetPreview && <aside className="mobile-wallet-tip" role="note">
+        <strong>Using the installed Meteor app?</strong>
+        <span>Open Meteor → Explore, then paste the REWIND Testnet link below. Meteor's Android app connects from its own browser, not from the web-only wallet chooser.</span>
+        <button type="button" onClick={() => {
+          void navigator.clipboard.writeText('https://afrolitehub.com/rewind/?network=testnet').then(() => {
+            setTx({ kind: 'confirmed', message: 'REWIND link copied. Open Meteor Wallet → Explore and paste it.' })
+          }).catch(() => setTx({ kind: 'error', message: 'Copy blocked. Open Meteor → Explore and enter afrolitehub.com/rewind/?network=testnet' }))
+        }}>Copy REWIND link for Meteor</button>
+      </aside>}
 
       <header className="hero">
         <div className="hero-copy">
