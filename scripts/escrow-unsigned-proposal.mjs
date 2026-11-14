@@ -4,7 +4,7 @@
  */
 export const OWNER_ID = 'afrolite.near';
 export const ESCROW_ID = 'escrow.afrolite.near';
-export const MIN_FUND_NEAR = '2';
+export const MIN_FUND_NEAR = '3.5';
 export const MAX_FUND_NEAR = '10';
 const YOCTO = 10n ** 24n;
 const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -40,8 +40,8 @@ export function parseFundingYocto(value) {
   }
   const [whole, fractional = ''] = value.split('.');
   const amount = BigInt(whole) * YOCTO + BigInt(fractional.padEnd(24, '0'));
-  if (amount < 2n * YOCTO || amount > 10n * YOCTO) {
-    throw Error('Pilot account creation funding must be between 2 and 10 NEAR');
+  if (amount < 35n * YOCTO / 10n || amount > 10n * YOCTO) {
+    throw Error('Pilot account creation funding must be between 3.5 and 10 NEAR');
   }
   return amount.toString();
 }
