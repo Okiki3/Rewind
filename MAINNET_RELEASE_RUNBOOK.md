@@ -8,10 +8,10 @@ This is a separate contract **candidate**, not a migration of the working Testne
 ## Owner account selected and publicly verified
 
 - **Proposed owner account:** `afrolite.near` — exists on NEAR Mainnet, with one FullAccess public key.
-- **Proposed separate escrow subaccount:** `afrolite-rewind-261114.near` — does not yet exist.
-- **Public-only verification:** https://github.com/Okiki3/Rewind/actions/runs/43609112281.
+- **Separate Meteor-created escrow candidate:** `afrolite-rewind-261114.near` — EXISTS on Mainnet, one public FullAccess key and no code (read-only RPC verified 14 Nov 2026). Has not yet been shown by a wallet-signed challenge to be under secure upgrade-key custody.
+- **Public-only verification:** https://github.com/Okiki3/Rewind/actions/runs/43620921109.
 - **Precise setup and owner-signature steps:** [MAINNET_OWNER_SETUP.md](MAINNET_OWNER_SETUP.md).
-- **Important:** public keys are not proof of custody, and no escrow account was created or deployed. The new V2 contract is still blocked from real-money activation pending an independent audit and owner-authorized signing.
+- **Important:** public keys are not proof of custody, and no escrow bytecode has been deployed. The new V2 contract is still blocked from real-money activation pending an independent audit and owner-authorized signing.
 
 ## What has been engineered
 
@@ -55,7 +55,7 @@ These receipts use **Testnet tokens only** and disposable keys generated in CI m
 ## Mainnet deployment (only AFTER all prerequisites)
 
 1. Build the pinned candidate WASM from reviewed source on a controlled machine. `cargo test --manifest-path contract-mainnet/Cargo.toml --locked` and `cargo build --manifest-path contract-mainnet/Cargo.toml --release --target wasm32-unknown-unknown --locked`. **Do not use any compiled mock fixture as the deployed code.**
-2. Create a **new** owner-controlled Mainnet account for the escrow, with secure FullAccess key custody. Deploy the independently vetted WASM, then initialize with `new({owner_id: "afrolite.near"})` in a contract-account-signed transaction (not an arbitrary dApp user's wallet transaction). The hardened contract rejects third-party initialization. Where supported, prefer a deploy+init in a reviewed transaction flow, with no public uninitialized deployment gap. Keep all account keys under your own control; never add them to repository files.
+2. **Already created:** Existing Meteor Mainnet account `afrolite-rewind-261114.near`, with secure FullAccess key custody to be confirmed. From `afrolite.near` in Meteor, user must personally approve the 4 NEAR funding transfer. Do not run CreateAccount again. Deploy the independently vetted WASM, then initialize with `new({owner_id: "afrolite.near"})` in a contract-account-signed transaction (not an arbitrary dApp user's wallet transaction). The hardened contract rejects third-party initialization. Where supported, prefer a deploy+init in a reviewed transaction flow, with no public uninitialized deployment gap. Keep all account keys under your own control; never add them to repository files.
 3. Fund the contract independently for byte-cost storage and gas; the 0.02 NEAR fee funds per-transfer storage. The escrow's 50 NEAR exposure cap does NOT make it risk-free.
 4. Read the new Mainnet account via NEAR RPC `query` / `view_account`, record its `code_hash`, check the FullAccess key list, and compare with the audited deploy artifact. Confirm `get_storage_fee`, `get_min_payment`, `get_max_payment`, `get_total_reserved`, `get_owner`, and `is_paused` output.
 5. Set up a separate private Mainnet keeper service only after approval. Env variables: `NEAR_NETWORK_ID=mainnet`, `NEAR_CONTRACT_ID`, `NEAR_RPC_URL`, `KEEPER_ACCOUNT_ID`, `KEEPER_PRIVATE_KEY`, `MAINNET_EXPECTED_CODE_HASH`, `KEEPER_CURSOR_FILE`, `ENABLE_MAINNET_KEEPER=I_ACCEPT_MAINNET_RISK`, `MAINNET_RELEASE_APPROVED=REVIEWED_AND_AUTHORIZED`. All signer credentials must be private server-side secrets.
