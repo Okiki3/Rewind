@@ -174,7 +174,7 @@ function App() {
       })
       .catch(() => undefined)
     return () => { cancelled = true }
-  }, [accountId, missingHistoryIds, explorerMinute, localRecordsKey])
+  }, [accountId, missingHistoryIds, explorerMinute, history, localRecordsKey, paymentHashes])
 
   const loadTransfer = useCallback(async (id = lookupId) => {
     const selected = id.trim()
@@ -398,14 +398,6 @@ function App() {
     try { setHistory(await viewAccountTransfers(accountId)) } catch { /* Polling will retry. */ }
     setLoading(false)
   }
-
-  const remaining = useMemo(() => {
-    if (!transfer) return ''
-    const delta = Number(transfer.expires_at_ms) - clock
-    if (delta <= 0) return 'Recovery window ended'
-    const seconds = Math.ceil(delta / 1_000)
-    return `${Math.floor(seconds / 60)}m ${seconds % 60}s left to cancel`
-  }, [clock, transfer])
 
   const canCancel = accountId === transfer?.sender && ((transfer?.status === 'RefundFailed' || transfer?.status === 'DeliveryFailed') || (transfer?.status === 'Pending' && clock < Number(transfer.expires_at_ms)))
   // Delivery is automatic. A manual rescue call is shown only after a delay
@@ -717,11 +709,6 @@ function statusLabel(status: Transfer['status'], expired = false) {
 
 function short(value: string) {
   return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value
-}
-
-function findTransferId(logs: string[]) {
-  const log = logs.find((item) => item.startsWith('TRANSFER_CREATED:'))
-  return log?.split(':')[1]
 }
 
 function errorMessage(error: unknown) {

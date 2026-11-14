@@ -22,7 +22,13 @@ try {
   }
   if (!available) throw new Error('Local REWIND server did not become available')
 
-  const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--no-sandbox'] })
+  const browser = await chromium.launch({
+    ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+      : { channel: 'chrome' }),
+    headless: true,
+    args: ['--no-sandbox'],
+  })
   try {
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } })
     const errors = []

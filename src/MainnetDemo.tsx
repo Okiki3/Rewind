@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   cancelTransfer, connectWallet, createTransfer, explorerAccount, explorerTx,
-  formatNear, getAccountId, getContractId, releaseTransfer, viewAccountTransfers,
+  formatNear, getAccountId, releaseTransfer, viewAccountTransfers,
   viewTransfer,
 } from './near'
 import { preflight } from '../sdk/index'
