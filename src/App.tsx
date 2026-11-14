@@ -8,6 +8,8 @@ import {
   formatNear,
   getContractId,
   getNetworkId,
+  getNetworkSwitchHref,
+  isProtectedPaymentEnabled,
   getAccountId,
   getSelectedWalletName,
   prepareWalletApproval,
@@ -49,6 +51,8 @@ const SDK_SNIPPET = [
 ].join('\n')
 
 function App() {
+  const isMainnetPreview = getNetworkId() === 'mainnet'
+  const paymentsEnabled = isProtectedPaymentEnabled()
   const [accountId, setAccountId] = useState('')
   const [recipient, setRecipient] = useState('')
   const [amount, setAmount] = useState('0.1')
@@ -195,6 +199,25 @@ function App() {
 
   async function submitCreate(event: FormEvent) {
     event.preventDefault()
+    // Mainnet is read-only account verification. No wallet or escrow calls.
+    if (!paymentsEnabled) {
+      setLoading(true)
+      try {
+        const inspected = await preflight({
+          recipient, amountNear: amount, network: 'mainnet',
+          contacts: savedRecipient.trim() ? [{ address: savedRecipient.trim() }] : [],
+          recentRecipients: [],
+          warnAboveNear: threshold.trim() && Number(threshold) > 0 ? threshold.trim() : undefined,
+        })
+        setReview(inspected)
+        setTx(initialTx)
+      } catch (error) {
+        setTx({ kind: 'error', message: errorMessage(error) })
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
     if (!accountId) {
       try {
         await connectWallet()
@@ -405,29 +428,41 @@ function App() {
     <main>
       <nav>
         <a className="brand" href={import.meta.env.BASE_URL} aria-label="REWIND home"><span className="brand-mark">↶</span> REWIND <b>NEAR</b></a>
-        <div className="nav-links"><a href="#how-it-works">How it works</a><a href="#app">Send NEAR</a><a href="#developers">SDK</a></div>
-        <div className="network"><i /> {getNetworkId()}</div>
-        {accountId
-          ? <button className="wallet" onClick={signOut}>{short(accountId)} · disconnect</button>
-          : <button className="wallet" onClick={() => { void connectWallet().catch((error: unknown) => setTx({ kind: 'error', message: errorMessage(error) })) }}>Connect NEAR wallet</button>}
+        <div className="nav-links"><a href="#how-it-works">How it works</a><a href="#app">{isMainnetPreview ? 'Address check' : 'Send NEAR'}</a><a href="#developers">SDK</a></div>
+        <div className="network-toggle" role="group" aria-label="NEAR network">
+          <span>Network</span>
+          <a href={getNetworkSwitchHref('testnet')} aria-current={!isMainnetPreview ? 'page' : undefined}>Testnet</a>
+          <a href={getNetworkSwitchHref('mainnet')} aria-current={isMainnetPreview ? 'page' : undefined}>Mainnet <small>Preview</small></a>
+        </div>
+        {isMainnetPreview
+          ? <span className="nav-preview-label">Read-only</span>
+          : accountId
+            ? <button className="wallet" onClick={signOut}>{short(accountId)} · disconnect</button>
+            : <button className="wallet" onClick={() => { void connectWallet().catch((error: unknown) => setTx({ kind: 'error', message: errorMessage(error) })) }}>Connect NEAR wallet</button>}
       </nav>
+
+      {isMainnetPreview && <section className="network-preview-banner" role="status">
+        <strong>Mainnet preview · No real payments</strong>
+        <p>You can check recipient accounts on NEAR Mainnet. Protected transfers, wallet signing and refunds are disabled until a Mainnet escrow contract passes security review and is deployed.</p>
+        <a href={getNetworkSwitchHref('testnet')}>Use the working Testnet version <span aria-hidden="true">→</span></a>
+      </section>}
 
       <header className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Payment protection for NEAR</p>
           <h1>Send NEAR with confidence.</h1>
-          <p className="lede">Check recipient details before you send. If you spot a mistake after approving a REWIND-protected payment, you have 60 seconds to cancel it before delivery.</p>
+          <p className="lede">Check recipient details before you send. REWIND-protected payments give senders 60 seconds to cancel a mistake before delivery. {isMainnetPreview && <strong> Protected transfers currently run on Testnet only.</strong>}</p>
           <div className="hero-actions">
-            <a className="button primary" href="#app">Try REWIND on Testnet <span aria-hidden="true">→</span></a>
-            <a className="button secondary" href="#developers">Integrate with a wallet <span aria-hidden="true">↗</span></a>
+            <a className="button primary" href="#app">{isMainnetPreview ? 'Check a Mainnet address' : 'Try REWIND on Testnet'} <span aria-hidden="true">→</span></a>
+            <a className="button secondary" href={isMainnetPreview ? getNetworkSwitchHref('testnet') : '#developers'}>{isMainnetPreview ? 'Try protected Testnet payments' : 'Integrate with a wallet'} <span aria-hidden="true">↗</span></a>
           </div>
-          <p className="testnet-note"><i /> NEAR Testnet prototype · Test tokens only</p>
+          <p className="testnet-note"><i /> {isMainnetPreview ? 'NEAR Mainnet · Read-only preview · No funds moved' : 'NEAR Testnet prototype · Test tokens only'}</p>
         </div>
 
         <div className="hero-demo" aria-label="Illustrative protected transfer, not a live payment">
           <div className="demo-top"><span>Protected transfer</span><strong>EXAMPLE ONLY</strong></div>
           <div className="demo-amount"><small>PAYMENT AMOUNT</small><b>1.00</b><span>NEAR</span></div>
-          <div className="demo-route"><span>sender.testnet</span><i aria-hidden="true">→</i><span>recipient.testnet</span></div>
+          <div className="demo-route"><span>{isMainnetPreview ? 'sender.near' : 'sender.testnet'}</span><i aria-hidden="true">→</i><span>{isMainnetPreview ? 'recipient.near' : 'recipient.testnet'}</span></div>
           <div className="demo-window">
             <div className="demo-check" aria-hidden="true">✓</div>
             <div><strong>Check before you approve</strong><span>Review the recipient and amount in your wallet.</span></div>
