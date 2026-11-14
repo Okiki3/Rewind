@@ -757,3 +757,10 @@ nav { gap: 16px; }
   .network-switch-label { font-size: 10px; }
   .network-preview-banner { margin: 12px 18px 0; }
 }
+
+/* Shown only after attempting wallet connection on an external mobile browser. */
+.mobile-wallet-tip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: 1240px; margin: 6px auto 0; padding: 12px 20px; border-radius: 12px; background: #e9f4eb; color: #123323; font-size: 13px; }
+.mobile-wallet-tip strong { white-space: nowrap; }
+.mobile-wallet-tip span { flex: 1 1 270px; }
+.mobile-wallet-tip button { border: 1px solid #236548; color: #123323; background: white; border-radius: 9px; padding: 9px 13px; font-weight: 700; cursor: pointer; }
+@media (max-width: 640px) { .mobile-wallet-tip { margin: 8px 14px 0; } .mobile-wallet-tip button { width: 100%; } }
