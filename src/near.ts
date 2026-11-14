@@ -7,6 +7,8 @@ import { setupNearMobileWallet } from '@near-wallet-selector/near-mobile-wallet'
 import '@near-wallet-selector/modal-ui/styles.css'
 import { selectRewindNetwork, networkSwitchHref, canUseProtectedTransfers, type RewindNetwork } from './networks'
 import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTransaction } from '../sdk/index'
+import { buildMainnetCandidateSendTransaction } from '../sdk/mainnet-candidate'
+import { verifyMainnetContract } from './mainnet-attestation'
 import type { Transfer } from './types'
 import { reserveWalletPopup, closeReservedWalletPopup, type WalletPopup } from './wallet-popup'
 import {
@@ -20,9 +22,13 @@ const networkId: RewindNetwork = selectRewindNetwork(
   typeof window !== 'undefined' ? window.location.search : '',
   import.meta.env.VITE_NEAR_NETWORK_ID || 'testnet',
 )
-// The existing VITE_NEAR_CONTRACT_ID is TESTNET ONLY.
-// Never reuse it as a Mainnet receiver, even if the URL is changed.
-const contractId = networkId === 'testnet' ? (import.meta.env.VITE_NEAR_CONTRACT_ID || '') : ''
+// Keep Testnet and Mainnet account IDs and signed transactions isolated.
+// Mainnet is disabled unless a separately vetted deployment is configured.
+const contractId = networkId === 'testnet'
+  ? (import.meta.env.VITE_NEAR_CONTRACT_ID || '')
+  : (import.meta.env.VITE_NEAR_MAINNET_CONTRACT_ID || '')
+const mainnetExpectedCodeHash = import.meta.env.VITE_MAINNET_EXPECTED_CODE_HASH || ''
+const mainnetReleaseApproved = import.meta.env.VITE_ENABLE_MAINNET_PAYMENTS === 'true'
 // Runtime selection must not reuse a Testnet build-time RPC on Mainnet.
 const nodeUrl = networkId === 'mainnet'
   ? 'https://rpc.mainnet.fastnear.com'
@@ -97,11 +103,22 @@ export function getNetworkSwitchHref(nextNetwork: RewindNetwork): string {
 }
 
 export function isProtectedPaymentEnabled(): boolean {
-  return canUseProtectedTransfers(networkId, contractId)
+  return canUseProtectedTransfers(
+    networkId, contractId, mainnetReleaseApproved, mainnetExpectedCodeHash,
+  )
+}
+
+async function assertLiveMainnetContract(): Promise<void> {
+  if (networkId === 'mainnet') {
+    await verifyMainnetContract({
+      contractId, expectedCodeHash: mainnetExpectedCodeHash, rpcUrl: nodeUrl,
+    })
+  }
 }
 
 export async function connectWallet() {
   assertPaymentsEnabled()
+  await assertLiveMainnetContract()
   // Bitget's official wallet-selector adapter intentionally returns null on
   // mobile. Use its documented injected NEAR provider inside Bitget's dApp
   // browser instead of redirecting the user to an unrelated wallet website.
@@ -110,7 +127,11 @@ export async function connectWallet() {
     return
   }
   if (isBitgetInAppBrowser()) {
-    throw new Error('Bitget Wallet did not provide a NEAR account in this browser. Select a NEAR account in Bitget and reload, or open REWIND with a wallet that supports NEAR Testnet. The REWIND demo does not accept Mainnet funds.')
+    throw new Error(
+      'Bitget Wallet did not provide a NEAR account in this browser. Select a compatible NEAR ' +
+      (networkId === 'mainnet' ? 'Mainnet' : 'Testnet') +
+      ' account in Bitget, then reload.'
+    )
   }
   const selector = await selectorPromise
   // Other wallets still use the official NEAR chooser, including desktop
@@ -146,7 +167,9 @@ export async function viewAccountTransfers(accountId: string): Promise<Transfer[
 
 export async function createTransfer(recipient: string, amountNear: string) {
   assertPaymentsEnabled()
-  const tx = buildProtectedSendTransaction(contractId, recipient, amountNear)
+  const tx = networkId === 'mainnet'
+    ? buildMainnetCandidateSendTransaction(contractId, recipient, amountNear)
+    : buildProtectedSendTransaction(contractId, recipient, amountNear)
   return call(tx.methodName, tx.args, BigInt(tx.deposit), BigInt(tx.gas))
 }
 
@@ -164,6 +187,9 @@ export async function releaseTransfer(id: string) {
 
 async function call(methodName: string, args: object, deposit: bigint, gas: bigint): Promise<FinalExecutionOutcome> {
   assertPaymentsEnabled()
+  // Re-verify before each signed transaction; a stale browser tab must not
+  // sign through a changed Mainnet deployment.
+  await assertLiveMainnetContract()
   const action = actionCreators.functionCall(methodName, args, gas, deposit)
   if (getBitgetMobileAccountId(networkId)) {
     return signWithBitgetMobile(networkId, contractId, [action])
@@ -218,7 +244,7 @@ export function explorerAccount(accountId: string) {
 
 function assertPaymentsEnabled() {
   if (!isProtectedPaymentEnabled()) {
-    throw new Error('Mainnet payments are not enabled. This is a read-only preview while the escrow undergoes security review. Select Testnet to try protected transfers.')
+    throw new Error('Mainnet payments are not enabled. A verified Mainnet escrow contract, approved code hash and production release approval are required. Select Testnet to try protected transfers.')
   }
   if (!contractId) throw new Error('Compatible Testnet contract is not configured')
 }
