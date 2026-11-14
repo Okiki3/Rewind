@@ -403,7 +403,7 @@ try {
       }
     })
     await mainnetPage.goto(base + '?network=mainnet', { waitUntil: 'domcontentloaded' })
-    await mainnetPage.getByText('Mainnet preview · No real payments').waitFor({ timeout: 12000 })
+    await mainnetPage.getByRole('heading', { name: 'Mainnet preview' }).waitFor({ timeout: 12000 })
     const activeNetwork = await mainnetPage.getByRole('switch', { name: /mainnet selected/i }).getAttribute('aria-checked')
     if (activeNetwork !== 'true' || await mainnetPage.getByRole('button', { name: /Connect NEAR wallet/i }).count()) {
       throw new Error('Mainnet preview selected incorrectly or attempted live wallet connection')
@@ -430,7 +430,7 @@ try {
       throw new Error('Mainnet preview invoked wallet signing')
     }
     await mainnetPage.screenshot({ path: 'rewind-browser-mainnet-preview.png', fullPage: false })
-    console.log('MAINNET_PREVIEW_READONLY_AND_RPC_PASS')
+    console.log('MAINNET_COMPACT_PREVIEW_READONLY_AND_RPC_PASS')
 
     // Going back must restore the existing functional Testnet payment UI.
     await mainnetPage.getByRole('switch', { name: /mainnet selected/i }).click()
