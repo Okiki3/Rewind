@@ -203,15 +203,18 @@ try {
         methodNames: [],
       }))
       localStorage.setItem('signedAccountId', 'sender.testnet')
+      localStorage.setItem('rewind-saved-recipient', 'afrolite.testnet')
     })
     await sendPage.route('https://rpc.testnet.fastnear.com/**', async (route) => {
       const request = route.request().postDataJSON()
       if (request.method === 'query' && request.params?.request_type === 'view_account') {
+        const unknown = request.params.account_id === 'afroliteee.testnet'
         await route.fulfill({
           status: 200, contentType: 'application/json',
           body: JSON.stringify({
             jsonrpc: '2.0', id: request.id,
-            result: { code_hash: '11111111111111111111111111111111' },
+            ...(unknown ? { error: { cause: { name: 'UNKNOWN_ACCOUNT' } } }
+              : { result: { code_hash: '11111111111111111111111111111111' } }),
           }),
         })
         return
@@ -238,6 +241,23 @@ try {
     })
     await sendPage.reload({ waitUntil: 'domcontentloaded' })
     await sendPage.getByRole('button', { name: /sender\.te.*disconnect/i }).waitFor({ timeout: 12000 })
+    // Invalid recipients must show a SINGLE decisive error and never reach wallet signing.
+    await sendPage.getByPlaceholder('friend.testnet').fill('afroliteee.testnet')
+    await sendPage.getByRole('button', { name: /^Review payment/ }).click()
+    const invalidAlert = sendPage.locator('.preflight-review[role="alert"]')
+    await invalidAlert.waitFor({ timeout: 12000 })
+    const invalidText = await invalidAlert.innerText()
+    if (!invalidText.includes('afroliteee.testnet') || !invalidText.includes('Transfer blocked') ||
+        !invalidText.includes('Did you mean afrolite.testnet') ||
+        (await invalidAlert.locator('p').count()) !== 0 ||
+        invalidText.includes("You're sending") ||
+        invalidText.includes('First-time recipient')) {
+      throw new Error('Nonexistent Testnet address shows duplicate or misleading warnings: ' + invalidText)
+    }
+    if (await sendPage.getByRole('button', { name: /^Confirm and send NEAR/ }).count()) {
+      throw new Error('Nonexistent Testnet recipient advanced to the signing step')
+    }
+    console.log('SINGLE_INVALID_RECIPIENT_ERROR_AND_SEND_BLOCK_PASS')
     await sendPage.getByPlaceholder('friend.testnet').fill('winner.testnet')
     await sendPage.getByRole('button', { name: /^Review payment/ }).click()
     await sendPage.getByRole('button', { name: /^Confirm and send NEAR/ }).waitFor({ timeout: 12000 })
