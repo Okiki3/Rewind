@@ -7,7 +7,16 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), 'dist')
 const staticOptions = { immutable: true, maxAge: '1y', index: false }
 
 app.get('/health', (_request, response) => response.json({ ok: true, service: 'rewind' }))
-app.use('/rewind/sdk', express.static(path.join(root, 'sdk'), { maxAge: '5m', index: false }))
+// SDK code and types are intentionally public so third-party wallet
+// websites can import the ESM module. No signing keys or credentials live here.
+app.use('/rewind/sdk', (_request, response, next) => {
+  response.setHeader('Access-Control-Allow-Origin', '*')
+  response.setHeader('X-Content-Type-Options', 'nosniff')
+  next()
+})
+app.use('/rewind/sdk', express.static(path.join(root, 'sdk'), { maxAge: '5m', index: false, dotfiles: 'deny' }))
+// Do not serve the website HTML as if a missing SDK JavaScript file existed.
+app.use('/rewind/sdk', (_request, response) => response.status(404).type('text/plain').send('SDK file not found'))
 app.use('/rewind', express.static(root, staticOptions))
 app.use(express.static(root, staticOptions))
 app.use((_request, response) => response.sendFile(path.join(root, 'index.html')))

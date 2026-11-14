@@ -1,7 +1,7 @@
 name: REWIND browser smoke
 on:
   push:
-    branches: ["fix/white-screen-runtime", "feat/live-transfer-receipt-history", "main"]
+    branches: ["fix/clear-homepage-public-sdk", "main"]
 jobs:
   smoke:
     runs-on: ubuntu-latest

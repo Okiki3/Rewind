@@ -68,8 +68,24 @@ try {
     }
     console.log('BROWSER_REAL_RECIPIENT_VERIFIED')
 
+    const heroText = await page.locator('.hero').innerText()
+    if (!heroText.includes('With control.') || heroText.includes('00:42') || heroText.includes('60S PROTECTION')) {
+      throw new Error('Homepage copy regressed or contains misleading static countdown')
+    }
+    const sendButton = page.locator('.hero-actions .button').first()
+    const sendBounds = await sendButton.boundingBox()
+    if (!sendBounds || sendBounds.y + sendBounds.height > 768) {
+      throw new Error('Send NEAR hero CTA falls below the desktop viewport')
+    }
+    console.log('HOMEPAGE_COPY_AND_CTA_PASS')
+
     const sdk = await page.request.get(base + 'sdk/index.js')
     console.log('SDK_HTTP', sdk.status(), 'TYPE', sdk.headers()['content-type'])
+    if (sdk.headers()['access-control-allow-origin'] !== '*') {
+      throw new Error('Public wallet SDK cannot be imported cross-origin')
+    }
+    const badSdk = await page.request.get(base + 'sdk/nonexistent-sdk.js')
+    if (badSdk.status() !== 404) throw new Error('Missing SDK file must return HTTP 404')
     if (!sdk.ok() || !(await sdk.text()).includes('buildProtectedSendTransaction')) {
       throw new Error('Public SDK is missing or unreadable')
     }

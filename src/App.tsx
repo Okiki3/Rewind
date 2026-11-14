@@ -406,9 +406,9 @@ function App() {
 
       <header className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">Extra protection for NEAR payments</p>
-          <h1>Send NEAR.<br /><em>With a safety net.</em></h1>
-          <p className="lede">REWIND checks for possible address mistakes before you approve a payment. If you notice a wrong recipient or amount after sending, you have <strong>60 seconds to cancel</strong>. Otherwise, the payment is delivered automatically.</p>
+          <p className="eyebrow">A smarter way to send NEAR</p>
+          <h1>Send NEAR.<br /><em>With control.</em></h1>
+          <p className="lede">Check who you are paying before you send. REWIND verifies the recipient account, warns about possible address mistakes, and lets you <strong>cancel within 60 seconds</strong> if you spot an error. Otherwise, delivery happens automatically.</p>
           <div className="hero-actions">
             <a className="button primary" href="#app">Send NEAR <span>→</span></a>
             <a className="button secondary" href="#how-it-works">See how it works <span>↓</span></a>
@@ -417,22 +417,21 @@ function App() {
         </div>
 
         <div className="hero-demo" aria-label="Illustrative transfer, not a live payment">
-          <div className="demo-top"><span>Example NEAR payment</span><strong>60S PROTECTION</strong></div>
-          <div className="demo-amount"><small>SENDING</small><b>8.40</b><span>NEAR</span></div>
+          <div className="demo-top"><span>Example payment</span><strong>ILLUSTRATION ONLY</strong></div>
+          <div className="demo-amount"><small>AMOUNT</small><b>1.00</b><span>NEAR</span></div>
           <div className="demo-route"><span>you.testnet</span><i>→</i><span>recipient.testnet</span></div>
           <div className="demo-window">
-            <div className="demo-clock">00:42</div>
-            <div><strong>Protection window</strong><span>A moment to correct a mistake</span></div>
+            <div className="demo-check" aria-hidden="true">✓</div>
+            <div><strong>Review before sending</strong><span>Confirm the account and amount in your wallet</span></div>
           </div>
-          <div className="demo-buttons"><span>Recipient reviewed</span><span>Auto-delivery next</span></div>
-          <div className="orbit orbit-one">↶</div><div className="orbit orbit-two">✓</div>
+          <div className="demo-buttons"><span>Address checks</span><span>Onchain tracking</span></div>
         </div>
       </header>
 
       <section className="proof-bar" aria-label="REWIND safeguards">
         <div><span>01</span><strong>Recipient address checks</strong></div>
-        <div><span>02</span><strong>60 seconds to cancel</strong></div>
-        <div><span>03</span><strong>Integrates with NEAR wallets</strong></div>
+        <div><span>02</span><strong>Time to correct a mistake</strong></div>
+        <div><span>03</span><strong>SDK for NEAR wallets</strong></div>
       </section>
 
       <section className="problem">
@@ -440,27 +439,27 @@ function App() {
         <div className="problem-grid">
           <h2>One wrong character.<br /><em>One extra zero.</em></h2>
           <div>
-            <p>Sending to a lookalike address or typing 10 NEAR instead of 1 is an easy mistake to make. REWIND helps you review the payment before approving it, then gives you 60 seconds to cancel if you spot an error.</p>
-            <p className="fine-print">Only payments sent through REWIND have this protection. Direct NEAR transfers can't be reversed, and cancellation closes after 60 seconds.</p>
+            <p>A mistyped address or an extra zero can turn a simple payment into an expensive mistake. REWIND adds a recipient check and a brief correction period before the money is delivered.</p>
+            <p className="fine-print">Protection applies only to payments made through REWIND. Ordinary NEAR transfers and completed REWIND payments cannot be reversed.</p>
           </div>
         </div>
       </section>
 
       <section className="walkthrough" id="how-it-works">
         <div className="section-heading">
-          <div><p className="section-kicker">How it works</p><h2>Two ways to catch<br />a payment mistake.</h2></div>
-          <p>A quick check before you approve, plus a short chance to cancel after sending.</p>
+          <div><p className="section-kicker">How it works</p><h2>Everything you need.<br />Nothing complicated.</h2></div>
+          <p>Send from your NEAR wallet, review the details and follow the payment right through to delivery.</p>
         </div>
         <div className="steps">
-          <article><span>01</span><div className="step-icon">◎</div><h3>Check the address</h3><p>Check if the NEAR account exists and flag lookalikes among your saved or previously used recipients.</p></article>
-          <article><span>02</span><div className="step-icon">◇</div><h3>Review and send</h3><p>Confirm the recipient and amount, then approve in your NEAR wallet. No new wallet needed.</p></article>
-          <article><span>03</span><div className="step-icon">↶</div><h3>60 seconds to cancel</h3><p>Sent 10 NEAR instead of 1? You can cancel before the 60-second window ends.</p></article>
-          <article><span>04</span><div className="step-icon">✓</div><h3>Automatic delivery</h3><p>If you leave the payment as it is, REWIND delivers it to the original recipient after the window ends.</p></article>
+          <article><span>01</span><div className="step-icon">◎</div><h3>Check the recipient</h3><p>REWIND checks whether the account exists and can warn about addresses similar to your saved contacts.</p></article>
+          <article><span>02</span><div className="step-icon">◇</div><h3>Confirm your payment</h3><p>Review the amount and recipient, then approve using your connected NEAR wallet.</p></article>
+          <article><span>03</span><div className="step-icon">↶</div><h3>Change your mind?</h3><p>If you notice a mistake in time, you can cancel the protected payment before delivery.</p></article>
+          <article><span>04</span><div className="step-icon">✓</div><h3>Track delivery</h3><p>If you don't cancel, delivery is requested automatically after the protection period. Follow the result onchain.</p></article>
         </div>
       </section>
 
       <section className="app-intro" id="app">
-        <div><p className="section-kicker">Try REWIND</p><h2>Send NEAR with a safety check.</h2></div>
+        <div><p className="section-kicker">Make a payment</p><h2>Send NEAR with REWIND.</h2></div>
         <p>Connected to {getNetworkId()}. Use test tokens and an account you control for your first payment.</p>
       </section>
 
@@ -484,7 +483,7 @@ function App() {
             {!review.valid && <button className="retry-check" type="button" onClick={() => { setReview(null); setTx(initialTx) }}>Retry address check</button>}
           </div>}
           <button className="primary form-submit" disabled={loading || (!!accountId && (!isNearAccountId(recipient.trim().toLowerCase()) || (review !== null && !review.valid)))}>{accountId ? (review?.valid ? 'Confirm and send NEAR' : 'Review payment') : 'Connect wallet to begin'} <span>→</span></button>
-          <small className="form-help">Protected by REWIND. If you send the wrong amount or enter the wrong address, you can cancel within 60 seconds.</small>
+          <small className="form-help">Made a mistake? REWIND lets you cancel this payment within 60 seconds of creation.</small>
         </form>
 
         <div className="panel inspect" ref={statusRef} id="transfer-status">
@@ -585,11 +584,11 @@ function App() {
       </section>}
 
       <section className="clarity">
-        <div className="clarity-title"><p className="section-kicker">For everyday payments</p><h2>Simple to use.<br />Built for wallets.</h2></div>
+        <div className="clarity-title"><p className="section-kicker">More than a website</p><h2>Built for senders.<br />Ready for wallets.</h2></div>
         <div className="clarity-grid">
-          <article><span>◎</span><h3>Address warnings, not guesses</h3><p>REWIND checks account existence and can flag addresses similar to your saved recipients. It doesn't claim to know who you meant to pay.</p></article>
-          <article><span>↶</span><h3>A fixed 60-second window</h3><p>Only the sender can cancel in time. The NEAR contract enforces the deadline and original recipient.</p></article>
-          <article><span>⌘</span><h3>Works beyond this website</h3><p>Wallet developers can add recipient checks and 60-second payment protection to their own NEAR send flows with the REWIND SDK.</p></article>
+          <article><span>◎</span><h3>Check before paying</h3><p>Account existence checks and optional contact comparisons help you review who you are paying.</p></article>
+          <article><span>↶</span><h3>Control before delivery</h3><p>Only the original sender can cancel a protected payment while its cancellation window is open.</p></article>
+          <article><span>⌘</span><h3>Bring it to your wallet</h3><p>Developers can add REWIND's checks and protected payment calls to their existing NEAR wallet experience.</p></article>
         </div>
       </section>
 
@@ -597,9 +596,9 @@ function App() {
       <section className="developers" id="developers">
         <div className="developer-copy">
           <p className="section-kicker">REWIND SDK</p>
-          <h2>Add safer payments to your NEAR wallet.</h2>
-          <p>REWIND is not limited to this website. Wallet developers can integrate the SDK to check recipient details and prepare a protected NEAR payment inside their own Send screen.</p>
-          <p>The wallet signs each payment. The smart contract handles the 60-second window and delivery. REWIND does not ask users to share private keys.</p>
+          <h2>Make REWIND part of your wallet.</h2>
+          <p>Use the public SDK to check NEAR accounts and prepare protected payments inside your existing Send flow. Users do not need to visit this website.</p>
+          <p>Your wallet handles signing. The contract enforces the cancellation deadline and recipient. No private keys are shared with REWIND.</p>
           <div className="developer-links">
             <a href={`${import.meta.env.BASE_URL}sdk/index.js`} target="_blank" rel="noreferrer">Download JavaScript SDK</a>
             <a href={`${import.meta.env.BASE_URL}sdk/index.d.ts`} target="_blank" rel="noreferrer">TypeScript definitions</a>
@@ -615,7 +614,7 @@ function App() {
       </section>
 
       <section className="final-cta">
-        <div><p className="section-kicker">A better way to send</p><h2>Check first.<br /><em>Send with confidence.</em></h2></div>
+        <div><p className="section-kicker">Ready when you are</p><h2>Send NEAR.<br /><em>With REWIND.</em></h2></div>
         <a className="button primary" href="#app">Send NEAR on Testnet <span>↑</span></a>
       </section>
 

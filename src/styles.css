@@ -57,7 +57,12 @@ h1 em { display: inline-block; color: var(--ink); background: var(--mint); borde
 .demo-route { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid #314239; border-bottom: 1px solid #314239; padding: 16px 0; color: #c5d0ca; font: 10px 'DM Mono'; }
 .demo-route i { color: var(--mint); font-style: normal; }
 .demo-window { display: grid; grid-template-columns: auto 1fr; gap: 15px; align-items: center; background: #1a3226; border: 1px solid #38604c; border-radius: 14px; padding: 16px; margin-top: 24px; }
-.demo-clock { color: var(--mint); font: 500 28px 'DM Mono'; }
+.demo-check {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--mint);
+  color: var(--ink); font-size: 22px; font-weight: 800; border: 2px solid #0f3828;
+}
+
 .demo-window strong, .demo-window span { display: block; }
 .demo-window strong { font-size: 12px; }
 .demo-window span { color: #82958b; font-size: 9px; margin-top: 4px; }
@@ -414,3 +419,10 @@ h1 em { margin-top: 7px; padding-bottom: 7px; }
   .receipt-clock-label strong { font-size: 23px; }
   .history-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Clear payment illustration: no static, misleading countdown. */
+.hero-demo { transform: none; box-shadow: 6px 6px 0 #b9e8d1; }
+.demo-amount { margin: 27px 0 25px; }
+.demo-top { gap: 12px; align-items: center; flex-wrap: wrap; }
+.demo-window { margin-top: 18px; }
+.demo-window span { line-height: 1.5; }
