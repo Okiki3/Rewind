@@ -1,0 +1,31 @@
+name: Generate pinned Near Connect migration lockfile
+on:
+  push:
+    branches: [feat/near-connect-v2-security-20261114]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  lock:
+    if: "!contains(github.event.head_commit.message, '[near-connect-lock-synced]')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Recalculate locked dependencies without running package scripts
+        run: npm install --package-lock-only --ignore-scripts --no-fund --no-audit
+      - name: Commit only the generated package-lock.json to this feature branch
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "LOCKFILE_ALREADY_IN_SYNC"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "Pin Near Connect wallet migration dependencies [near-connect-lock-synced]"
+          git push origin HEAD:feat/near-connect-v2-security-20261114
+          echo "LOCKFILE_SYNCED"

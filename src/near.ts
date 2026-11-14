@@ -1,14 +1,11 @@
-import { actionCreators, setupWalletSelector, type FinalExecutionOutcome } from '@near-wallet-selector/core'
-import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet'
-import { setupModal } from '@near-wallet-selector/modal-ui'
-import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet'
-import { setupSender } from '@near-wallet-selector/sender'
-import { setupNearMobileWallet } from '@near-wallet-selector/near-mobile-wallet'
-import '@near-wallet-selector/modal-ui/styles.css'
+import { NearConnector, type ConnectorAction } from '@hot-labs/near-connect'
+import type { FinalExecutionOutcome } from './near-types'
 import { selectRewindNetwork, networkSwitchHref, canUseProtectedTransfers, type RewindNetwork } from './networks'
 import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTransaction } from '../sdk/index'
+import { buildMainnetCandidateSendTransaction } from '../sdk/mainnet-candidate'
+import { verifyMainnetContract } from './mainnet-attestation'
 import type { Transfer } from './types'
-import { reserveWalletPopup, closeReservedWalletPopup, type WalletPopup } from './wallet-popup'
+import type { WalletPopup } from './wallet-popup'
 import {
   hasBitgetInAppWallet, isBitgetInAppBrowser, getBitgetMobileAccountId, connectBitgetMobile,
   disconnectBitgetMobile, signWithBitgetMobile,
@@ -20,68 +17,65 @@ const networkId: RewindNetwork = selectRewindNetwork(
   typeof window !== 'undefined' ? window.location.search : '',
   import.meta.env.VITE_NEAR_NETWORK_ID || 'testnet',
 )
-// The existing VITE_NEAR_CONTRACT_ID is TESTNET ONLY.
-// Never reuse it as a Mainnet receiver, even if the URL is changed.
-const contractId = networkId === 'testnet' ? (import.meta.env.VITE_NEAR_CONTRACT_ID || '') : ''
+// Keep Testnet and Mainnet account IDs and signed transactions isolated.
+// Mainnet is disabled unless a separately vetted deployment is configured.
+const contractId = networkId === 'testnet'
+  ? (import.meta.env.VITE_NEAR_CONTRACT_ID || '')
+  : (import.meta.env.VITE_NEAR_MAINNET_CONTRACT_ID || '')
+const mainnetExpectedCodeHash = import.meta.env.VITE_MAINNET_EXPECTED_CODE_HASH || ''
+const mainnetReleaseApproved = import.meta.env.VITE_ENABLE_MAINNET_PAYMENTS === 'true'
 // Runtime selection must not reuse a Testnet build-time RPC on Mainnet.
 const nodeUrl = networkId === 'mainnet'
   ? 'https://rpc.mainnet.fastnear.com'
   : (import.meta.env.VITE_NEAR_NODE_URL || 'https://rpc.testnet.fastnear.com')
 // Use MyNearWallet's real app host. The previous generic near.org wallet URL
 // was incompatible with this wallet selector connector.
-const walletUrl = networkId === 'mainnet' ? 'https://app.mynearwallet.com' : 'https://testnet.mynearwallet.com'
-const helperUrl = networkId === 'mainnet'
-  ? 'https://helper.mainnet.near.org'
-  : (import.meta.env.VITE_NEAR_HELPER_URL || 'https://helper.testnet.near.org')
 const explorerUrl = networkId === 'mainnet' ? 'https://nearblocks.io' : 'https://testnet.nearblocks.io'
 
-const selectorPromise = setupWalletSelector({
-  network: { networkId, nodeUrl, helperUrl, explorerUrl, indexerUrl: '' },
-  modules: [
-    setupMeteorWallet(),
-    setupSender(),
-    setupNearMobileWallet(),
-    setupMyNearWallet({ walletUrl }),
-  ],
+// NEAR Foundation recommends the sandboxed near-connect wallet connector.
+// Wallet executors are isolated from the dApp; injected Bitget uses a separate
+// direct path so its in-app browser does not redirect to a web login.
+const connector = new NearConnector({
+  network: networkId,
+  features: { signAndSendTransaction: true },
+  footerBranding: null,
+})
+let selectedWalletId = ''
+let selectedWalletName = ''
+connector.on('wallet:signIn', ({ wallet }) => {
+  selectedWalletId = wallet.manifest.id
+  selectedWalletName = wallet.manifest.name
+})
+connector.on('wallet:signOut', () => {
+  selectedWalletId = ''
+  selectedWalletName = ''
 })
 
-let walletModal: ReturnType<typeof setupModal> | null = null
-let selectorCache: Awaited<typeof selectorPromise> | null = null
-void selectorPromise.then((selector) => { selectorCache = selector }).catch(() => undefined)
-
 export function getSelectedWalletId(): string {
-  return selectorCache?.store.getState().selectedWalletId || ''
+  return selectedWalletId
 }
 
 export function getSelectedWalletName(): string {
   if (getBitgetMobileAccountId(networkId)) return 'Bitget Wallet'
-  const selected = getSelectedWalletId()
-  if (selected === 'my-near-wallet') return 'MyNearWallet'
-  if (selected === 'meteor-wallet') return 'Meteor Wallet'
-  if (selected === 'sender') return 'Sender Wallet'
-  return selected || 'your connected wallet'
+  return selectedWalletName || 'your connected wallet'
 }
 
-/**
- * Reserve a MyNearWallet window while we're still in a direct user gesture.
- * Its connector first awaits a NEAR RPC block before calling window.open;
- * browsers often block that delayed popup unless its named window exists.
- */
-export function prepareWalletApproval(): WalletPopup {
-  if (getBitgetMobileAccountId(networkId)) return null
-  return reserveWalletPopup(getSelectedWalletId())
-}
-
-export function finishWalletApproval(popup: WalletPopup): void {
-  closeReservedWalletPopup(popup)
-}
+/** Near Connect manages its own popup during an explicit wallet gesture. */
+export function prepareWalletApproval(): WalletPopup { return null }
+export function finishWalletApproval(_popup: WalletPopup): void { /* managed by connector */ }
 
 export async function getAccountId() {
   if (!isProtectedPaymentEnabled()) return ''
   const injectedAccount = getBitgetMobileAccountId(networkId)
   if (injectedAccount) return injectedAccount
-  const selector = await selectorPromise
-  return selector.store.getState().accounts[0]?.accountId || ''
+  try {
+    const { wallet, accounts } = await connector.getConnectedWallet()
+    selectedWalletId = wallet.manifest.id
+    selectedWalletName = wallet.manifest.name
+    return accounts[0]?.accountId || ''
+  } catch {
+    return ''
+  }
 }
 
 export function getContractId() {
@@ -97,11 +91,22 @@ export function getNetworkSwitchHref(nextNetwork: RewindNetwork): string {
 }
 
 export function isProtectedPaymentEnabled(): boolean {
-  return canUseProtectedTransfers(networkId, contractId)
+  return canUseProtectedTransfers(
+    networkId, contractId, mainnetReleaseApproved, mainnetExpectedCodeHash,
+  )
+}
+
+async function assertLiveMainnetContract(): Promise<void> {
+  if (networkId === 'mainnet') {
+    await verifyMainnetContract({
+      contractId, expectedCodeHash: mainnetExpectedCodeHash, rpcUrl: nodeUrl,
+    })
+  }
 }
 
 export async function connectWallet() {
   assertPaymentsEnabled()
+  await assertLiveMainnetContract()
   // Bitget's official wallet-selector adapter intentionally returns null on
   // mobile. Use its documented injected NEAR provider inside Bitget's dApp
   // browser instead of redirecting the user to an unrelated wallet website.
@@ -110,22 +115,24 @@ export async function connectWallet() {
     return
   }
   if (isBitgetInAppBrowser()) {
-    throw new Error('Bitget Wallet did not provide a NEAR account in this browser. Select a NEAR account in Bitget and reload, or open REWIND with a wallet that supports NEAR Testnet. The REWIND demo does not accept Mainnet funds.')
+    throw new Error(
+      'Bitget Wallet did not provide a NEAR account in this browser. Select a compatible NEAR ' +
+      (networkId === 'mainnet' ? 'Mainnet' : 'Testnet') +
+      ' account in Bitget, then reload.'
+    )
   }
-  const selector = await selectorPromise
-  // Other wallets still use the official NEAR chooser, including desktop
-  // extensions and the NEAR Mobile Wallet connector.
-  if (!walletModal) walletModal = setupModal(selector, { contractId })
-  walletModal.show()
+  // Open the modern NEAR wallet chooser. Never request a signing key on connect;
+  // payable function calls continue to require the wallet's own approval.
+  const wallet = await connector.connect()
+  selectedWalletId = wallet.manifest.id
+  selectedWalletName = wallet.manifest.name
 }
 
 export async function signOut() {
   if (getBitgetMobileAccountId(networkId)) {
     await disconnectBitgetMobile()
   } else {
-    const selector = await selectorPromise
-    const wallet = await selector.wallet()
-    await wallet.signOut()
+    await connector.disconnect()
   }
   window.location.reload()
 }
@@ -146,7 +153,9 @@ export async function viewAccountTransfers(accountId: string): Promise<Transfer[
 
 export async function createTransfer(recipient: string, amountNear: string) {
   assertPaymentsEnabled()
-  const tx = buildProtectedSendTransaction(contractId, recipient, amountNear)
+  const tx = networkId === 'mainnet'
+    ? buildMainnetCandidateSendTransaction(contractId, recipient, amountNear)
+    : buildProtectedSendTransaction(contractId, recipient, amountNear)
   return call(tx.methodName, tx.args, BigInt(tx.deposit), BigInt(tx.gas))
 }
 
@@ -164,13 +173,21 @@ export async function releaseTransfer(id: string) {
 
 async function call(methodName: string, args: object, deposit: bigint, gas: bigint): Promise<FinalExecutionOutcome> {
   assertPaymentsEnabled()
-  const action = actionCreators.functionCall(methodName, args, gas, deposit)
+  // Re-verify before each signed transaction; a stale browser tab must not
+  // sign through a changed Mainnet deployment.
+  await assertLiveMainnetContract()
+  const action: ConnectorAction = {
+    type: 'FunctionCall',
+    params: {
+      methodName, args, gas: gas.toString(), deposit: deposit.toString(),
+    },
+  }
   if (getBitgetMobileAccountId(networkId)) {
     return signWithBitgetMobile(networkId, contractId, [action])
   }
-  const selector = await selectorPromise
-  const wallet = await selector.wallet()
+  const wallet = await connector.wallet()
   const outcome = await wallet.signAndSendTransaction({
+    network: networkId,
     signerId: await getAccountId(),
     receiverId: contractId,
     actions: [action],
@@ -218,7 +235,7 @@ export function explorerAccount(accountId: string) {
 
 function assertPaymentsEnabled() {
   if (!isProtectedPaymentEnabled()) {
-    throw new Error('Mainnet payments are not enabled. This is a read-only preview while the escrow undergoes security review. Select Testnet to try protected transfers.')
+    throw new Error('Mainnet payments are not enabled. A verified Mainnet escrow contract, approved code hash and production release approval are required. Select Testnet to try protected transfers.')
   }
   if (!contractId) throw new Error('Compatible Testnet contract is not configured')
 }

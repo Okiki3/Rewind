@@ -1,4 +1,5 @@
-import { najActionToInternal, type FinalExecutionOutcome, type Action } from '@near-wallet-selector/core'
+import type { ConnectorAction } from '@hot-labs/near-connect'
+import type { FinalExecutionOutcome } from './near-types'
 
 type BitgetError = string | { type?: string; message?: string }
 
@@ -9,7 +10,7 @@ interface BitgetNearProvider {
   signOut(): Promise<unknown>
   signAndSendTransaction(args: {
     receiverId: string
-    actions: ReturnType<typeof najActionToInternal>[]
+    actions: ConnectorAction[]
   }): Promise<{ response?: FinalExecutionOutcome[]; error?: BitgetError }>
 }
 
@@ -83,17 +84,17 @@ export async function connectBitgetMobile(contractId: string, networkId: string)
 export async function signWithBitgetMobile(
   networkId: string,
   receiverId: string,
-  actions: Action[],
+  actions: ConnectorAction[],
 ): Promise<FinalExecutionOutcome> {
   const injected = provider()
   if (!hasBitgetInAppWallet() || !injected) throw new Error('Bitget NEAR wallet is no longer available')
   const id = getBitgetMobileAccountId(networkId)
   if (!id) throw new Error('Bitget Wallet is not connected to the correct NEAR network')
-  // Use the same action format as the official NEAR Wallet Selector Bitget adapter.
-  // Only the wallet can authorise and sign these actions.
+  // Near Connect uses the same FunctionCall action shape expected by the
+  // injected Bitget NEAR wallet. Only the wallet can sign.
   const result = await injected.signAndSendTransaction({
     receiverId,
-    actions: actions.map((action) => najActionToInternal(action)),
+    actions,
   })
   if (result?.error) throw new Error(formatProviderError(result.error))
   const outcome = result?.response?.[0]

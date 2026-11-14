@@ -1,0 +1,37 @@
+name: Mainnet candidate wallet flow (MOCKED - NO REAL MONEY)
+on:
+  push:
+    branches:
+      - feat/mainnet-contract-hardening-20261114
+permissions:
+  contents: read
+jobs:
+  candidate-wallet-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      VITE_BASE_PATH: /rewind/
+      VITE_NEAR_NETWORK_ID: testnet
+      VITE_NEAR_CONTRACT_ID: rewind.rewindproof-mwfi8ufi-fa888154e57d.testnet
+      # TEST FIXTURES ONLY, never a Mainnet release deployment!
+      VITE_NEAR_MAINNET_CONTRACT_ID: rewind.near
+      VITE_MAINNET_EXPECTED_CODE_HASH: 8WFiJRVvrvySGFrsMnf3wxdpMzz4wWL8RkYSxFdW44Q
+      VITE_ENABLE_MAINNET_PAYMENTS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --no-package-lock playwright-core@1.58.2
+      - run: npm run build
+      - run: node scripts/mainnet-candidate-browser.mjs
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewind-mainnet-candidate-mobile-mocked
+          path: rewind-mainnet-candidate-mobile.png
+          if-no-files-found: ignore

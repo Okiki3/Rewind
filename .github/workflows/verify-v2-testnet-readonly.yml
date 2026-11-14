@@ -1,0 +1,21 @@
+name: Verify first REWIND V2 real Testnet escrow results (READ ONLY)
+on:
+  push:
+    branches: [feat/mainnet-contract-hardening-20261114]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-chain-receipts:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[v2-readonly-proof]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm actual network callback finality and reserve balance
+        run: node integration/verify-v2-first-deployment-readonly.mjs

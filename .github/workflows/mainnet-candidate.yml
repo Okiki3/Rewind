@@ -1,0 +1,39 @@
+name: Mainnet candidate contract (NO DEPLOYMENT)
+on:
+  push:
+    branches:
+      - feat/mainnet-contract-hardening-20261114
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract-mainnet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Test isolated Mainnet candidate
+        run: cargo test --manifest-path contract-mainnet/Cargo.toml --locked
+      - name: Compile Mainnet candidate WASM - do not deploy
+        run: cargo build --manifest-path contract-mainnet/Cargo.toml --release --target wasm32-unknown-unknown --locked
+      - name: Run bounded Mainnet keeper tests
+        run: |
+          node --test keeper/scan-mainnet.test.mjs
+          node --check keeper/index-mainnet.mjs
+      - name: Preserve compiled WASM and exact lockfile for independent review
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewind-mainnet-candidate-wasm-lock
+          path: |
+            contract-mainnet/target/wasm32-unknown-unknown/release/rewind_escrow_mainnet_candidate.wasm
+            contract-mainnet/Cargo.lock
+          if-no-files-found: error
+      - name: Explicitly block any deploy from this workflow
+        run: |
+          echo "MAINNET_CANDIDATE_COMPILED; NO ONCHAIN DEPLOYMENT"
+          echo "WASM and Cargo.lock are available for release review."
