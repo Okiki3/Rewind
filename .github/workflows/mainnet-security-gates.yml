@@ -1,0 +1,50 @@
+name: REWIND Mainnet candidate dependency security gates
+on:
+  push:
+    branches: [feat/mainnet-contract-hardening-20261114]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  javascript-dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify locked packages are installable
+        run: npm ci --no-audit --no-fund
+      - name: Print high / critical production dependency findings
+        shell: bash
+        run: |
+          npm audit --omit=dev --json > /tmp/rewind-audit.json || true
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const audit = JSON.parse(fs.readFileSync("/tmp/rewind-audit.json","utf8"));
+            const vulnerabilities = Object.entries(audit.vulnerabilities||{});
+            const severe = vulnerabilities.filter(([,item]) => ["high","critical"].includes(item.severity));
+            console.log("PRODUCTION_DEPENDENCY_FINDINGS:", JSON.stringify(audit.metadata?.vulnerabilities||{}));
+            for(const [name,issue] of severe) {
+              console.log("BLOCKER:",name,"severity="+issue.severity,"via="+JSON.stringify(issue.via).slice(0,700),"fix="+JSON.stringify(issue.fixAvailable));
+            }
+            if (severe.length) process.exit(1);
+          '
+  candidate-rustsec:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: RustSec advisory scan on Mainnet V2 pinned lockfile
+        uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: contract-mainnet
