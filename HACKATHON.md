@@ -10,6 +10,15 @@ A direct settled NEAR payment cannot ordinarily be reversed. Users can mistype a
 
 The contract temporarily holds assets as a technical necessity; REWIND is **not** a generic escrow marketplace and cannot reverse direct transactions outside the protocol.
 
+## Additional network support (post-hackathon development)
+
+The one REWIND website now includes a **Testnet / Mainnet** switcher in its navigation.
+
+- **Testnet:** the working, signed and onchain-proven protected-payment flow, including refunds and automatic delivery.
+- **Mainnet preview:** live read-only account verification against Mainnet RPC, with optional address/amount warnings. **Mainnet escrow operations are deliberately disabled** because no separately audited and owner-controlled Mainnet contract has been deployed.
+
+Mainnet is therefore **not** an additional live contract deployment or real-money payment service. It demonstrates network-aware architecture without falsely implying that an unaudited escrow is ready for production. Selecting another network preserves the website route while isolating onchain configuration and transfer records.
+
 ## Architecture
 
 - `contract/src/lib.rs`: near-sdk native-NEAR payment protection. Sender-only cancel, immutable 60-second period, released/refunded status confirmed by asynchronous callbacks, and recoverable failed payouts.

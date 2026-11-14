@@ -8,6 +8,19 @@ REWIND is an experimental, wallet-integrable payment protection protocol for **N
 
 **Try it:** [Live REWIND app](https://afrolitehub.com/rewind) · [Developer SDK](sdk/README.md) · [Hackathon judge guide](HACKATHON.md) · [Security review (draft PR #11)](https://github.com/Okiki3/Rewind/pull/11)
 
+### Testnet and Mainnet in one website
+
+The website includes a network selector in the navigation. Switching networks reloads the application with an explicit network parameter and **never carries over a Testnet transfer history or contract address into Mainnet**.
+
+| Network | Available today | What it does |
+| --- | --- | --- |
+| [NEAR Testnet](https://afrolitehub.com/rewind/?network=testnet) | **Fully interactive prototype** | Connect a compatible Testnet wallet, check addresses, send protected test tokens, cancel in the 60-second window, and track confirmed delivery |
+| [NEAR Mainnet preview](https://afrolitehub.com/rewind/?network=mainnet) | **Read-only preview** | Verify whether an account exists on Mainnet and review address warnings; **no wallet signing, escrow deposits, withdrawals or Mainnet funds** |
+
+**Mainnet protection is not live.** No owner-controlled, security-reviewed Mainnet escrow has been deployed. Selecting Mainnet does **not** convert Testnet funds or expose a contract address for real deposits. Both network environments are represented in the same frontend, but real-money payments remain deliberately disabled until custody, dependency, storage-economics and independent audit requirements are completed.
+
+Developers must continue to use the **Testnet SDK and contract account** for the current demonstration. An unaudited Mainnet contract or a substituted Testnet address is not a valid production integration.
+
 ## Why REWIND exists
 
 Native cryptocurrency transfers are generally irreversible once settled. Sending to a mistyped account or entering the wrong amount can be costly. REWIND adds *two opportunities to catch mistakes*:
@@ -31,6 +44,7 @@ The recipient checks do **not** prove a person's identity, detect every scam or 
 | Transaction hashes | Creation hashes are shown/copyable when available; historical hashes are recovered from public explorer data when unambiguously matched |
 | Public SDK | Lightweight wallet-independent recipient checks and FunctionCall transaction builders with documentation and examples |
 | Safety-focused homepage | Practical payment and integration copy; no invented 42-second saving metric or repeated promotional countdown |
+| Network switcher | Testnet payment flow and Mainnet address-check preview, explicitly isolating contract IDs and blocking all Mainnet financial transactions |
 
 A wallet that does not integrate REWIND continues to make normal transfers. The SDK does not intercept or reverse transactions initiated elsewhere.
 

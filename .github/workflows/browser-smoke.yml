@@ -1,7 +1,7 @@
 name: REWIND browser smoke
 on:
   push:
-    branches: ["fix/sdk-types-mime", "main"]
+    branches: ["fix/sdk-types-mime", "main", "feat/**"]
 jobs:
   smoke:
     runs-on: ubuntu-latest
@@ -27,4 +27,6 @@ jobs:
           path: |
             rewind-browser-smoke.png
             rewind-browser-receipt.png
+            rewind-browser-mobile-wallet.png
+            rewind-browser-mainnet-preview.png
           if-no-files-found: ignore

@@ -375,6 +375,76 @@ try {
     console.log('BITGET_MAINNET_REJECTION_NO_REDIRECT_PASS')
     await wrongNetworkPage.close()
 
+    // A single website must let people switch networks without ever sending
+    // Testnet escrow funds to Mainnet. Test Mainnet preview on a phone viewport.
+    const mainnetPage = await browser.newPage({ viewport: { width: 390, height: 844 } })
+    await mainnetPage.addInitScript(() => {
+      window.__mainnetSignedTransactions = 0
+      window.bitkeep = { near: {
+        isSignedIn: () => true,
+        getAccountId: () => 'alice.near',
+        requestSignIn: async () => ({ accessKey: {} }),
+        signOut: async () => true,
+        signAndSendTransaction: async () => { window.__mainnetSignedTransactions++; throw Error('Mainnet signing forbidden') },
+      } }
+    })
+    const queriedNetworks = []
+    await mainnetPage.route('https://rpc.mainnet.fastnear.com/**', async (route) => {
+      const request = route.request().postDataJSON()
+      queriedNetworks.push(request?.method ?? 'unknown')
+      if (request?.method === 'query' && request.params?.request_type === 'view_account') {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          body: JSON.stringify({ jsonrpc: '2.0', id: request.id,
+            result: { code_hash: '11111111111111111111111111111111' } }),
+        })
+      } else {
+        await route.abort('failed')
+      }
+    })
+    await mainnetPage.goto(base + '?network=mainnet', { waitUntil: 'domcontentloaded' })
+    await mainnetPage.getByText('Mainnet preview · No real payments').waitFor({ timeout: 12000 })
+    const activeNetwork = await mainnetPage.locator('.network-toggle a[aria-current="page"]').innerText()
+    if (!activeNetwork.includes('Mainnet') || await mainnetPage.getByRole('button', { name: /Connect NEAR wallet/i }).count()) {
+      throw new Error('Mainnet preview selected incorrectly or attempted live wallet connection')
+    }
+    const mainnetWidth = await mainnetPage.evaluate(() => ({
+      available: document.documentElement.clientWidth,
+      actual: document.documentElement.scrollWidth,
+    }))
+    if (mainnetWidth.actual > mainnetWidth.available + 3) {
+      throw new Error('Mainnet preview overflows mobile viewport: ' + JSON.stringify(mainnetWidth))
+    }
+    await mainnetPage.getByPlaceholder('friend.near').fill('afrolite.near')
+    await mainnetPage.getByRole('button', { name: /Check Mainnet recipient/i }).click()
+    await mainnetPage.getByText('Read-only review:', { exact: false }).waitFor({ timeout: 12000 })
+    const inspected = await mainnetPage.locator('.preflight-review').innerText()
+    if (!inspected.includes('afrolite.near') || !inspected.includes('No payment will be submitted') ||
+        !queriedNetworks.includes('query')) {
+      throw new Error('Mainnet account verification did not use Mainnet RPC correctly: ' + inspected)
+    }
+    if (await mainnetPage.locator('.payment-receipt, .history-entry').count()) {
+      throw new Error('Mainnet preview displayed data from Testnet transfer history')
+    }
+    if ((await mainnetPage.evaluate(() => window.__mainnetSignedTransactions)) !== 0) {
+      throw new Error('Mainnet preview invoked wallet signing')
+    }
+    await mainnetPage.screenshot({ path: 'rewind-browser-mainnet-preview.png', fullPage: false })
+    console.log('MAINNET_PREVIEW_READONLY_AND_RPC_PASS')
+
+    // Going back must restore the existing functional Testnet payment UI.
+    await mainnetPage.locator('.network-toggle').getByRole('link', { name: 'Testnet' }).click()
+    await mainnetPage.waitForURL('**/rewind/?network=testnet')
+    await mainnetPage.getByRole('button', { name: /Connect NEAR wallet/i }).waitFor({ timeout: 12000 })
+    if (await mainnetPage.getByRole('button', { name: /Confirm and send NEAR/i }).count()) {
+      throw new Error('Testnet payment review unexpectedly skipped after switching networks')
+    }
+    if (!(await mainnetPage.locator('.network-toggle a[aria-current="page"]').innerText()).includes('Testnet')) {
+      throw new Error('Switching back did not restore Testnet')
+    }
+    console.log('TESTNET_MAINNET_SWITCH_ROUNDTRIP_PASS')
+    await mainnetPage.close()
+
     console.log('BROWSER_SMOKE_PASS')
   } finally { await browser.close() }
 } catch (error) {
