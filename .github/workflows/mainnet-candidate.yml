@@ -1,0 +1,29 @@
+name: Mainnet candidate contract (NO DEPLOYMENT)
+on:
+  push:
+    branches:
+      - feat/mainnet-contract-hardening-20261114
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract-mainnet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Test isolated Mainnet candidate
+        run: cargo test --manifest-path contract-mainnet/Cargo.toml
+      - name: Compile Mainnet candidate WASM - do not deploy
+        run: cargo build --manifest-path contract-mainnet/Cargo.toml --release --target wasm32-unknown-unknown
+      - name: Check for a generated lockfile to pin before production
+        run: |
+          if test -f contract-mainnet/Cargo.lock; then
+            echo "Candidate lockfile generated during CI; MUST be committed and audited before any release."
+          fi
+          echo "MAINNET_CANDIDATE_COMPILED; NO ONCHAIN DEPLOYMENT"
