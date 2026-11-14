@@ -34,10 +34,10 @@ Attacker capabilities: arbitrary accounts can submit deposit calls, trigger perm
 
 ## Real-chain evidence, not just mocks
 
-- **Testnet V2 contract:** `escrow.rewind-v2-mwghg491-45a9d31f.testnet`
-- **Onchain NEAR `code_hash`:** `EnNHVY88UeBbQkpvRMN6bCgszfztGbh88qe49EFsNrU`
-- **WASM SHA-256:** `0387d8dc9a975d4da82f87d418bf2d4d2f51283990f91bc76c94603165d81579`
-- **Passing real Testnet workflow:** https://github.com/Okiki3/Rewind/actions/runs/43603269956
+- **Testnet V2 contract:** `escrow.rewind-v2-mwglgeow-a4bd9385.testnet`
+- **Onchain NEAR `code_hash`:** `A7cptN7Nbks1Mi8GbPozwFvhqdEXgH5dW1cmwW3E2Huv`
+- **WASM SHA-256:** `876b2ce33694813263a44093471cd1119e59a1ce036c0469e9802aa7e0937bb5`
+- **Passing real Testnet workflow:** https://github.com/Okiki3/Rewind/actions/runs/43613229545
 - **Initial sender refund:** https://testnet.nearblocks.io/txns/D7fpHW6vR6eNwVdJJxdgkCUAsvEwcfor1MaaWZfobBWn
 - **Failed-delivery recovery refund:** https://testnet.nearblocks.io/txns/axAM6UmXTyBx4hj3HFbDemhdn3SfRtT4SgsujeArqgE
 - **Separate finality/reconciliation workflow:** https://github.com/Okiki3/Rewind/actions/runs/43603357365
