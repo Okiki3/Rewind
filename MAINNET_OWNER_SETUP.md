@@ -5,7 +5,7 @@
 ## Updated owner action (Meteor, mobile)
 
 - **New contract candidate:** `afrolite-rewind-261114.near` created in Meteor and verified to exist on real NEAR Mainnet on 14 Nov 2026 using a public-only RPC check. It has one public FullAccess key and **no contract bytecode**. Public key alone is not proof of signing-key custody.
-- **Next owner step:** from `afrolite.near` in Meteor, transfer exactly **4 NEAR** to `afrolite-rewind-261114.near`, after reviewing the exact destination and amount. Both are accounts the user says they control. Do not use the old subaccount creation command below because the Meteor account **already exists**. This transfer is independent of deploying a smart contract.
+- **Owner funding confirmed, 14 Nov 2026:** The user completed the transfer from `afrolite.near` in Meteor. [Read-only Mainnet check](https://github.com/Okiki3/Rewind/actions/runs/43621207990) confirmed escrow raw balance **at least 4 NEAR** and estimated spendable above **3.8 NEAR**. Funds are in the separate account; no smart contract has been deployed. **Do not send more money.**
 - **Mobile contract deployment:** not yet implemented or independently verified. Do not enter a wallet private key into an external deployment site or pass it to GitHub Actions. The wallet must expressly sign a deployment on the new contract account itself. Deployment will install the **paused-by-default** verified candidate only after secure ownership and release review.
 - **Public deposits:** OFF pending independent external audit, keeper and contract verification.
 
@@ -46,7 +46,7 @@ The user selected **Meteor Wallet** to control the proposed owner account `afrol
 
 1. Open Meteor from a trusted bookmark or directly from the official website. Unlock it locally.
 2. Select **NEAR Mainnet** and confirm the active account shown by Meteor is exactly `afrolite.near`.
-3. Verify that the existing escrow account is precisely `afrolite-rewind-261114.near`. Transfer 4 NEAR from `afrolite.near` only after confirming you control the new account and reviewing the destination inside Meteor. No contract code has been deployed.
+3. **Funding is already complete**; verify that `afrolite-rewind-261114.near` remains accessible from Meteor and don't send another deposit. No contract code has been deployed.
 4. Use a future reviewed Meteor-connected ownership challenge to prove custody of `afrolite.near`. Never copy its full-access private key or seed phrase into a CLI script, website, issue, chat or CI secret.
 5. The named account already exists. **Do not CreateAccount again.** Verify separate key custody before authorizing any WASM deployment from `afrolite-rewind-261114.near`; the deployed contract defaults to paused.
 
@@ -69,7 +69,7 @@ An external auditor has **not** accepted an engagement. Hacken publishes a [NEAR
 1. Using the wallet where you control `afrolite.near`, confirm **Mainnet** and that it is the active signing account. You must authorize the transaction yourself.
 2. Choose how to hold the separate escrow account's **FullAccess/upgrade keys**. Prefer audited multisig/DAO control or other professionally managed custody. Do **not** deploy the V2 escrow onto the personal `afrolite.near` account.
 3. Commission independent security review against `contract-mainnet/src/lib.rs`, its locked dependencies, exact SHA-256 WASM and security brief. Record and remediate all critical and high findings. Review NEAR Connect's mutable wallet-executor trust boundary too.
-4. The new named account exists. From `afrolite.near` use Meteor Send for the planned 4 NEAR transfer to `afrolite-rewind-261114.near` after verifying both accounts. This funds the existing account but does not deploy or permit public escrow deposits.
+4. **Completed:** Mainnet account creation and owner transfer of 4 NEAR, with verified onchain balance. No second transfer, subaccount creation or CLI key import is needed.
 5. Verify that `afrolite-rewind-261114.near` now exists onchain and inspect **every** FullAccess public key, permission, deployment policy and intended signer.
 6. Deploy the professionally reviewed WASM using your wallet's signing approval, initialize exactly once with owner ID `afrolite.near`, then check `code_hash`, owner, fee, caps, exposure, pause and operating balance. Pin these exact values before enabling any web or keeper signing.
 7. Provision an independently controlled, funded keeper account with its own secret storage and audited monitoring. Do not put its credentials into frontend `VITE_*` configuration.
