@@ -75,10 +75,16 @@ try {
     console.log('BROWSER_REAL_RECIPIENT_VERIFIED')
 
     const heroText = await page.locator('.hero').innerText()
-    if (!heroText.includes('Send NEAR with confidence.') ||
-        !heroText.includes('Check recipient details before you send.') ||
+    if (!heroText.includes('Catch mistakes before they cost you') ||
+        !heroText.includes('60-second cancellation window') ||
+        heroText.toUpperCase().includes('WORKING DEMO') ||
         heroText.includes('00:42') || heroText.includes('60S PROTECTION')) {
       throw new Error('Homepage copy regressed or contains misleading static countdown')
+    }
+    const networkSwitch = page.locator('.network-switch')
+    const networkBounds = await networkSwitch.boundingBox()
+    if (!networkBounds || networkBounds.width > 120 || !(await networkSwitch.innerText()).includes('Testnet')) {
+      throw new Error('Default network control is not a compact Testnet button')
     }
     const sendButton = page.locator('.hero-actions .button').first()
     const sendBounds = await sendButton.boundingBox()

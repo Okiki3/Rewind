@@ -19,7 +19,7 @@ export { formatNear } from './amount'
 
 const networkId: RewindNetwork = selectRewindNetwork(
   typeof window !== 'undefined' ? window.location.search : '',
-  import.meta.env.VITE_NEAR_NETWORK_ID || 'testnet',
+  'testnet',
 )
 // The existing VITE_NEAR_CONTRACT_ID is TESTNET ONLY.
 // Never reuse it as a Mainnet receiver, even if the URL is changed.

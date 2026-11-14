@@ -426,7 +426,6 @@ function App() {
         <a className="brand" href={import.meta.env.BASE_URL} aria-label="REWIND home"><span className="brand-mark">↶</span> REWIND <b>NEAR</b></a>
         <div className="nav-links"><a href="#how-it-works">How it works</a><a href="#app">{isMainnetPreview ? 'Address check' : 'Send NEAR'}</a><a href="#developers">SDK</a></div>
         <div className="network-switcher">
-          <span className="network-switcher-title">Network</span>
           <button
             type="button"
             className="network-switch"
@@ -436,11 +435,9 @@ function App() {
             title={isMainnetPreview ? 'Switch to Testnet' : 'Switch to Mainnet'}
             onClick={() => { window.location.assign(getNetworkSwitchHref(isMainnetPreview ? 'testnet' : 'mainnet')) }}
           >
-            <span className="network-switch-track" aria-hidden="true">
-              <span className="network-switch-thumb" />
-              <span className="network-switch-label network-switch-testnet">Testnet</span>
-              <span className="network-switch-label network-switch-mainnet">Mainnet</span>
-            </span>
+            <span className="network-status-dot" aria-hidden="true" />
+            <span>{isMainnetPreview ? 'Mainnet' : 'Testnet'}</span>
+            <span className="network-swap" aria-hidden="true">⇄</span>
           </button>
         </div>
         {!isMainnetPreview && (accountId
@@ -451,13 +448,13 @@ function App() {
       <header className="hero">
         <div className="hero-copy">
           <p className="eyebrow">Payment protection for NEAR</p>
-          <h1>Send NEAR with confidence.</h1>
-          <p className="lede">Check recipient details before you send. REWIND-protected payments give senders 60 seconds to cancel a mistake before delivery.</p>
+          <h1>Catch mistakes before they cost you</h1>
+          <p className="lede">REWIND checks the recipient before you approve, then gives protected payments a 60-second cancellation window before delivery.</p>
           <div className="hero-actions">
-            <a className="button primary" href="#app" >{isMainnetPreview ? 'Check an address' : 'Try REWIND'} <span aria-hidden="true">→</span></a>
-            <a className="button secondary" href={isMainnetPreview ? getNetworkSwitchHref('testnet') : '#developers'}>{isMainnetPreview ? 'Switch to Testnet' : 'Integrate with a wallet'} <span aria-hidden="true">↗</span></a>
+            <a className="button primary" href="#app" >{isMainnetPreview ? 'Check an address' : 'Protect a payment'} <span aria-hidden="true">→</span></a>
+            <a className="button secondary" href={isMainnetPreview ? getNetworkSwitchHref('testnet') : '#developers'}>{isMainnetPreview ? 'Switch to Testnet' : 'Build with REWIND'} <span aria-hidden="true">↗</span></a>
           </div>
-          <p className="testnet-note"><i /> {isMainnetPreview ? 'NEAR Mainnet · Address check' : 'NEAR Testnet · Working demo'}</p>
+          <p className="testnet-note"><i /> {isMainnetPreview ? 'NEAR Mainnet · Address check' : 'NEAR Testnet'}</p>
         </div>
 
         <div className="hero-demo" aria-label="Illustrative protected transfer, not a live payment">
@@ -466,24 +463,24 @@ function App() {
           <div className="demo-route"><span>{isMainnetPreview ? 'sender.near' : 'sender.testnet'}</span><i aria-hidden="true">→</i><span>{isMainnetPreview ? 'recipient.near' : 'recipient.testnet'}</span></div>
           <div className="demo-window">
             <div className="demo-check" aria-hidden="true">✓</div>
-            <div><strong>Check before you approve</strong><span>Review the recipient and amount in your wallet.</span></div>
+            <div><strong>Review before signing</strong><span>Confirm the recipient and amount in your wallet.</span></div>
           </div>
-          <div className="demo-buttons"><span>Recipient checks</span><span>Cancellation window</span></div>
+          <div className="demo-buttons"><span>Recipient verification</span><span>60-second protection</span></div>
         </div>
       </header>
 
       <section className="proof-bar" aria-label="REWIND benefits">
-        <div><span>01</span><strong>Check the recipient</strong></div>
-        <div><span>02</span><strong>Cancel a mistaken payment</strong></div>
-        <div><span>03</span><strong>Integrate with NEAR wallets</strong></div>
+        <div><span>01</span><strong>Verify before signing</strong></div>
+        <div><span>02</span><strong>60 seconds to cancel</strong></div>
+        <div><span>03</span><strong>Wallet-ready SDK</strong></div>
       </section>
 
       <section className="problem">
         <p className="section-kicker">Why REWIND</p>
         <div className="problem-grid">
-          <h2>Small mistakes shouldn't go unnoticed.</h2>
+          <h2>A safer send starts before approval</h2>
           <div>
-            <p>A mistyped account or incorrect amount can lead to an irreversible transfer. REWIND helps you review payment details and gives you a short opportunity to cancel before a protected payment is delivered.</p>
+            <p>A mistyped account or wrong amount can turn into an irreversible loss. REWIND verifies the destination before signing and holds protected payments for 60 seconds, so the sender can cancel an error before delivery.</p>
             <p className="fine-print">Only payments sent through the REWIND contract can be cancelled during the protection window. Direct NEAR transfers and completed payments cannot be reversed.</p>
           </div>
         </div>
@@ -491,14 +488,14 @@ function App() {
 
       <section className="walkthrough" id="how-it-works">
         <div className="section-heading">
-          <div><p className="section-kicker">How it works</p><h2>Check. Send. Stay in control.</h2></div>
-          <p>Protection is part of the payment flow, not a separate recovery request.</p>
+          <div><p className="section-kicker">How it works</p><h2>Protection at every step</h2></div>
+          <p>From recipient verification to confirmed delivery, the safety checks stay inside one payment flow.</p>
         </div>
         <div className="steps">
-          <article><span>01 / REVIEW</span><div className="step-icon" aria-hidden="true">◎</div><h3>Check the details</h3><p>Verify that the recipient account exists and review any address or amount warnings.</p></article>
-          <article><span>02 / APPROVE</span><div className="step-icon" aria-hidden="true">◇</div><h3>Approve in your wallet</h3><p>Your wallet signs a protected transfer to the REWIND contract.</p></article>
-          <article><span>03 / CORRECT</span><div className="step-icon" aria-hidden="true">↶</div><h3>Cancel if needed</h3><p>Only the sender can cancel during the 60-second window. Otherwise, delivery is requested after expiry.</p></article>
-          <article><span>04 / VERIFY</span><div className="step-icon" aria-hidden="true">✓</div><h3>Track the outcome</h3><p>See the transfer status and transaction hash as the blockchain confirms settlement.</p></article>
+          <article><span>01 / VERIFY</span><div className="step-icon" aria-hidden="true">◎</div><h3>Confirm the destination</h3><p>REWIND checks that the recipient exists and flags address or amount warnings before you sign.</p></article>
+          <article><span>02 / PROTECT</span><div className="step-icon" aria-hidden="true">◇</div><h3>Approve the protected payment</h3><p>Your wallet signs one onchain transaction to the REWIND contract, which starts the safety window.</p></article>
+          <article><span>03 / CORRECT</span><div className="step-icon" aria-hidden="true">↶</div><h3>Cancel an error</h3><p>Only the sender can cancel during the 60-second window and recover the protected funds.</p></article>
+          <article><span>04 / DELIVER</span><div className="step-icon" aria-hidden="true">✓</div><h3>Follow the delivery</h3><p>If you do nothing, delivery begins after the window. Track its onchain status and transaction hash.</p></article>
         </div>
       </section>
 
@@ -650,8 +647,8 @@ function App() {
       </section>
 
       <section className="final-cta">
-        <div><p className="section-kicker">Get started</p><h2>Review first. Send with confidence.</h2></div>
-        <a className="button primary" href={isMainnetPreview ? getNetworkSwitchHref('testnet') : '#app'}>{isMainnetPreview ? 'Use the live Testnet demo' : 'Try REWIND on Testnet'} <span aria-hidden="true">↑</span></a>
+        <div><p className="section-kicker">Get started</p><h2>Verify the details, protect the payment</h2></div>
+        <a className="button primary" href={isMainnetPreview ? getNetworkSwitchHref('testnet') : '#app'}>{isMainnetPreview ? 'Use REWIND on Testnet' : 'Protect a Testnet payment'} <span aria-hidden="true">↑</span></a>
       </section>
 
       {tx.kind !== 'idle' && <aside className={`toast ${tx.kind}`}><button onClick={() => setTx(initialTx)}>×</button><strong>{tx.kind === 'error' ? 'Not confirmed' : 'Transaction status'}</strong><p>{tx.message}</p>{tx.kind === 'wallet' && <small>Some wallets sign through an existing permission without a popup. Check your wallet transactions and REWIND transfer history before trying to send again.</small>}{tx.hash && <a href={explorerTx(tx.hash)} target="_blank" rel="noreferrer">View {short(tx.hash)} on NEAR explorer ↗</a>}</aside>}
@@ -659,7 +656,7 @@ function App() {
       <footer className="site-footer">
         <div className="footer-identity">
           <a className="brand footer-brand" href={import.meta.env.BASE_URL} aria-label="REWIND home"><span className="brand-mark">↶</span> REWIND</a>
-          <p>Payment protection for NEAR. Check the details, then send with a chance to correct mistakes.</p>
+          <p>Payment protection for NEAR with pre-signing checks and a 60-second cancellation window.</p>
         </div>
         <div className="footer-nav">
           <strong>Explore</strong>
