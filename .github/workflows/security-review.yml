@@ -28,6 +28,29 @@ jobs:
         run: npm run build
       - name: Verify live public SDK bytes, CORS, MIME and onchain ownership keys
         run: node scripts/security-readonly-audit.mjs
-      - name: Audit production JavaScript dependencies
+  js-dependency-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fail if production JavaScript dependency vulnerabilities are high or critical
         run: npm audit --omit=dev --audit-level=high
-        continue-on-error: true
+  rust-dependency-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check Rust dependencies against RustSec advisories
+        uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
