@@ -2,6 +2,7 @@ import { actionCreators, setupWalletSelector, type FinalExecutionOutcome } from 
 import { setupModal } from '@near-wallet-selector/modal-ui'
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet'
 import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet'
+import { setupMeteorWalletApp } from '@near-wallet-selector/meteor-wallet-app'
 import { setupSender } from '@near-wallet-selector/sender'
 import { setupNearMobileWallet } from '@near-wallet-selector/near-mobile-wallet'
 import '@near-wallet-selector/modal-ui/styles.css'
@@ -34,6 +35,16 @@ const helperUrl = networkId === 'mainnet'
   : (import.meta.env.VITE_NEAR_HELPER_URL || 'https://helper.testnet.near.org')
 const explorerUrl = networkId === 'mainnet' ? 'https://nearblocks.io' : 'https://testnet.nearblocks.io'
 
+type MeteorNativeWindow = Window & {
+  __is_running_in_meteor_wallet_app__?: boolean
+  ReactNativeWebView?: { postMessage?: (message: string) => void }
+}
+const meteorNativeBridge = typeof window !== 'undefined' &&
+  Boolean((window as MeteorNativeWindow).__is_running_in_meteor_wallet_app__) &&
+  typeof (window as MeteorNativeWindow).ReactNativeWebView?.postMessage === 'function'
+const externalMobileBrowser = typeof navigator !== 'undefined' &&
+  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && !meteorNativeBridge
+
 const selectorPromise = setupWalletSelector({
   network: { networkId, nodeUrl, helperUrl, explorerUrl, indexerUrl: '' },
   // NEAR Mobile Wallet requires an explicit contract access key to complete
@@ -42,8 +53,12 @@ const selectorPromise = setupWalletSelector({
     ? { createAccessKeyFor: { contractId, methodNames: [] } }
     : {}),
   modules: [
+    ...(meteorNativeBridge && networkId === 'testnet' && contractId
+      ? [setupMeteorWalletApp({ contractId })] : []),
     setupNearMobileWallet(),
-    setupMeteorWallet(),
+    // Meteor's normal connector is web/extension-only. Do not redirect Android
+    // Chrome to wallet.meteorwallet.app when the user expects the installed app.
+    ...(!externalMobileBrowser ? [setupMeteorWallet()] : []),
     setupSender(),
     setupMyNearWallet({ walletUrl }),
   ],
@@ -62,6 +77,7 @@ export function getSelectedWalletName(): string {
   const selected = getSelectedWalletId()
   if (selected === 'my-near-wallet') return 'MyNearWallet'
   if (selected === 'meteor-wallet') return 'Meteor Wallet'
+  if (selected === 'meteor-wallet-app') return 'Meteor Wallet App'
   if (selected === 'sender') return 'Sender Wallet'
   return selected || 'your connected wallet'
 }
@@ -106,6 +122,12 @@ export function isProtectedPaymentEnabled(): boolean {
 
 export async function connectWallet() {
   assertPaymentsEnabled()
+  if (meteorNativeBridge && networkId === 'testnet') {
+    const selector = await selectorPromise
+    const wallet = await selector.wallet('meteor-wallet-app')
+    await wallet.signIn({ contractId, methodNames: [] })
+    return
+  }
   // Bitget's official wallet-selector adapter intentionally returns null on
   // mobile. Use its documented injected NEAR provider inside Bitget's dApp
   // browser instead of redirecting the user to an unrelated wallet website.
