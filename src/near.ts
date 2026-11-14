@@ -6,7 +6,8 @@ import { setupSender } from '@near-wallet-selector/sender'
 import { setupNearMobileWallet } from '@near-wallet-selector/near-mobile-wallet'
 import '@near-wallet-selector/modal-ui/styles.css'
 import { selectRewindNetwork, networkSwitchHref, canUseProtectedTransfers, type RewindNetwork } from './networks'
-import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTransaction } from '../sdk/index'
+import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTransaction, parseNearAmount } from '../sdk/index'
+import { buildMainnetCandidateSendTransaction } from '../sdk/mainnet-candidate'
 import type { Transfer } from './types'
 import { reserveWalletPopup, closeReservedWalletPopup, type WalletPopup } from './wallet-popup'
 import {
@@ -20,9 +21,13 @@ const networkId: RewindNetwork = selectRewindNetwork(
   typeof window !== 'undefined' ? window.location.search : '',
   import.meta.env.VITE_NEAR_NETWORK_ID || 'testnet',
 )
-// The existing VITE_NEAR_CONTRACT_ID is TESTNET ONLY.
-// Never reuse it as a Mainnet receiver, even if the URL is changed.
-const contractId = networkId === 'testnet' ? (import.meta.env.VITE_NEAR_CONTRACT_ID || '') : ''
+// The existing VITE_NEAR_CONTRACT_ID is Testnet ONLY.
+// A separate explicit ?network=mainnet&demo=1 opt-in uses the V2 ABI.
+const mainnetDemo = networkId === 'mainnet' &&
+  (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1')
+const contractId = networkId === 'testnet'
+  ? (import.meta.env.VITE_NEAR_CONTRACT_ID || '')
+  : (mainnetDemo ? 'afrolite-rewind-261114.near' : '')
 // Runtime selection must not reuse a Testnet build-time RPC on Mainnet.
 const nodeUrl = networkId === 'mainnet'
   ? 'https://rpc.mainnet.fastnear.com'
@@ -97,7 +102,7 @@ export function getNetworkSwitchHref(nextNetwork: RewindNetwork): string {
 }
 
 export function isProtectedPaymentEnabled(): boolean {
-  return canUseProtectedTransfers(networkId, contractId)
+  return canUseProtectedTransfers(networkId, contractId, mainnetDemo)
 }
 
 export async function connectWallet() {
@@ -110,7 +115,7 @@ export async function connectWallet() {
     return
   }
   if (isBitgetInAppBrowser()) {
-    throw new Error('Bitget Wallet did not provide a NEAR account in this browser. Select a NEAR account in Bitget and reload, or open REWIND with a wallet that supports NEAR Testnet. The REWIND demo does not accept Mainnet funds.')
+    throw new Error('Bitget Wallet did not provide a NEAR account in this browser. Select a NEAR account in Bitget and reload, or open REWIND with a wallet that supports NEAR Testnet. The selected wallet/network is not available in this browser.')
   }
   const selector = await selectorPromise
   // Other wallets still use the official NEAR chooser, including desktop
@@ -146,7 +151,15 @@ export async function viewAccountTransfers(accountId: string): Promise<Transfer[
 
 export async function createTransfer(recipient: string, amountNear: string) {
   assertPaymentsEnabled()
-  const tx = buildProtectedSendTransaction(contractId, recipient, amountNear)
+  if (mainnetDemo) {
+    const amount = BigInt(parseNearAmount(amountNear))
+    if (amount < 10n ** 22n || amount > 10n ** 23n) {
+      throw new Error('Hackathon Mainnet demo supports 0.01 to 0.1 NEAR per payment, plus a 0.02 NEAR non-refundable storage fee.')
+    }
+  }
+  const tx = mainnetDemo
+    ? buildMainnetCandidateSendTransaction(contractId, recipient, amountNear)
+    : buildProtectedSendTransaction(contractId, recipient, amountNear)
   return call(tx.methodName, tx.args, BigInt(tx.deposit), BigInt(tx.gas))
 }
 
@@ -218,7 +231,7 @@ export function explorerAccount(accountId: string) {
 
 function assertPaymentsEnabled() {
   if (!isProtectedPaymentEnabled()) {
-    throw new Error('Mainnet payments are not enabled. This is a read-only preview while the escrow undergoes security review. Select Testnet to try protected transfers.')
+    throw new Error('Protected payment actions are only available in Testnet or the explicit small-value Mainnet hackathon demo.')
   }
-  if (!contractId) throw new Error('Compatible Testnet contract is not configured')
+  if (!contractId) throw new Error('Compatible contract is not configured')
 }
