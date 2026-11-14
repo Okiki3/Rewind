@@ -3,10 +3,15 @@ import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet'
 import { setupModal } from '@near-wallet-selector/modal-ui'
 import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet'
 import { setupSender } from '@near-wallet-selector/sender'
+import { setupNearMobileWallet } from '@near-wallet-selector/near-mobile-wallet'
 import '@near-wallet-selector/modal-ui/styles.css'
 import { buildProtectedSendTransaction, buildCancelTransaction, buildReleaseTransaction } from '../sdk/index'
 import type { Transfer } from './types'
 import { reserveWalletPopup, closeReservedWalletPopup, type WalletPopup } from './wallet-popup'
+import {
+  hasBitgetInAppWallet, getBitgetMobileAccountId, connectBitgetMobile,
+  disconnectBitgetMobile, signWithBitgetMobile,
+} from './bitget-injected'
 
 export { formatNear } from './amount'
 
@@ -27,6 +32,7 @@ const selectorPromise = setupWalletSelector({
   modules: [
     setupMeteorWallet(),
     setupSender(),
+    setupNearMobileWallet(),
     setupMyNearWallet({ walletUrl }),
   ],
 })
@@ -40,6 +46,7 @@ export function getSelectedWalletId(): string {
 }
 
 export function getSelectedWalletName(): string {
+  if (getBitgetMobileAccountId(networkId)) return 'Bitget Wallet'
   const selected = getSelectedWalletId()
   if (selected === 'my-near-wallet') return 'MyNearWallet'
   if (selected === 'meteor-wallet') return 'Meteor Wallet'
@@ -61,6 +68,8 @@ export function finishWalletApproval(popup: WalletPopup): void {
 }
 
 export async function getAccountId() {
+  const injectedAccount = getBitgetMobileAccountId(networkId)
+  if (injectedAccount) return injectedAccount
   const selector = await selectorPromise
   return selector.store.getState().accounts[0]?.accountId || ''
 }
@@ -75,18 +84,28 @@ export function getNetworkId() {
 
 export async function connectWallet() {
   assertConfigured()
+  // Bitget's official wallet-selector adapter intentionally returns null on
+  // mobile. Use its documented injected NEAR provider inside Bitget's dApp
+  // browser instead of redirecting the user to an unrelated wallet website.
+  if (hasBitgetInAppWallet()) {
+    await connectBitgetMobile(contractId, networkId)
+    return
+  }
   const selector = await selectorPromise
-  // Show NEAR's wallet chooser in the dApp.
-  // Installed extension wallets ask for approval within the extension.
-  // Browser wallets such as MyNearWallet still use a redirect by design.
+  // Other wallets still use the official NEAR chooser, including desktop
+  // extensions and the NEAR Mobile Wallet connector.
   if (!walletModal) walletModal = setupModal(selector, { contractId })
   walletModal.show()
 }
 
 export async function signOut() {
-  const selector = await selectorPromise
-  const wallet = await selector.wallet()
-  await wallet.signOut()
+  if (getBitgetMobileAccountId(networkId)) {
+    await disconnectBitgetMobile()
+  } else {
+    const selector = await selectorPromise
+    const wallet = await selector.wallet()
+    await wallet.signOut()
+  }
   window.location.reload()
 }
 
@@ -120,12 +139,16 @@ export async function releaseTransfer(id: string) {
 
 async function call(methodName: string, args: object, deposit: bigint, gas: bigint): Promise<FinalExecutionOutcome> {
   assertConfigured()
+  const action = actionCreators.functionCall(methodName, args, gas, deposit)
+  if (getBitgetMobileAccountId(networkId)) {
+    return signWithBitgetMobile(networkId, contractId, [action])
+  }
   const selector = await selectorPromise
   const wallet = await selector.wallet()
   const outcome = await wallet.signAndSendTransaction({
     signerId: await getAccountId(),
     receiverId: contractId,
-    actions: [actionCreators.functionCall(methodName, args, gas, deposit)],
+    actions: [action],
   })
   if (!outcome) throw new Error('Wallet confirmation is still pending. Check the transaction after returning.')
   return outcome
