@@ -632,3 +632,97 @@ nav { min-height: 72px; }
   .site-footer .footer-identity { grid-column: auto; }
   .site-footer .footer-bottom { gap: 8px; }
 }
+
+/* REWIND runtime network selector: Testnet works; Mainnet stays read-only. */
+nav { gap: 16px; }
+.network-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 4px;
+  border: 1px solid #bed0c3;
+  border-radius: 10px;
+  background: #fff;
+  white-space: nowrap;
+}
+.network-toggle > span {
+  padding: 0 9px;
+  font: 650 10px 'DM Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #587066;
+}
+.network-toggle a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 8px 11px;
+  border-radius: 7px;
+  color: #395a49;
+  font: 750 11px Manrope, sans-serif;
+  text-decoration: none;
+}
+.network-toggle a:hover { background: #eef8f1; }
+.network-toggle a[aria-current="page"] { background: #143c2b; color: #fff; }
+.network-toggle a[aria-current="page"]:hover { background: #143c2b; }
+.network-toggle a small { font-size: 9px; font-weight: 600; opacity: .78; }
+.nav-preview-label {
+  display: inline-flex;
+  color: #5a6c60;
+  font: 650 10px 'DM Mono', monospace;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+.network-preview-banner {
+  max-width: 1192px;
+  margin: 16px auto 0;
+  padding: 16px 20px;
+  border: 1px solid #c0d2c7;
+  border-left: 4px solid #739a83;
+  background: #f2f7f2;
+  border-radius: 10px;
+  display: grid;
+  grid-template-columns: 1.15fr 2.8fr auto;
+  align-items: center;
+  gap: 15px;
+}
+.network-preview-banner strong { font-size: 13px; }
+.network-preview-banner p { color: #516458; font-size: 11px; line-height: 1.6; margin: 0; }
+.network-preview-banner a { font-size: 11px; color: #08734e; font-weight: 750; white-space: nowrap; }
+.mainnet-roadmap { background: #f5faf7; }
+.mainnet-roadmap .panel-title { margin-bottom: 28px; }
+.mainnet-roadmap-steps { border-top: 1px solid #bfcfc2; }
+.mainnet-roadmap-steps p {
+  padding: 16px 0;
+  border-bottom: 1px solid #c3d4c8;
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.mainnet-roadmap-steps strong { font-size: 13px; color: #183a29; }
+.mainnet-roadmap-steps span { font-size: 12px; color: #5b6f61; line-height: 1.65; }
+.mainnet-roadmap-note { font-size: 11px; color: #667667; line-height: 1.7; margin: 19px 0; }
+.mainnet-roadmap .button { font-size: 11px; width: fit-content; max-width: 100%; }
+@media (max-width: 1130px) {
+  .nav-links { display: none; }
+  .network-preview-banner { grid-template-columns: 1fr; margin: 14px 18px 0; }
+  .network-preview-banner a { white-space: normal; }
+}
+@media (max-width: 800px) {
+  nav { flex-wrap: wrap; padding: 13px 18px 14px; gap: 10px; }
+  nav .brand { order: 0; margin-right: auto; }
+  nav .wallet, nav .nav-preview-label { order: 1; }
+  .network-toggle { order: 2; width: 100%; justify-content: center; }
+  .network-toggle > span { margin-right: auto; }
+  .network-toggle a { justify-content: center; }
+  .nav-preview-label { margin: 0 7px; }
+  .network-preview-banner { padding: 15px; }
+}
+@media (max-width: 390px) {
+  .network-toggle > span { font-size: 9px; padding: 0 4px; }
+  .network-toggle a { padding: 7px 8px; font-size: 10px; }
+  .network-toggle a small { font-size: 8px; }
+  .network-preview-banner { margin: 12px 18px 0; }
+}
