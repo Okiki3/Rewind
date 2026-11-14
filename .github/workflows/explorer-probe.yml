@@ -1,0 +1,14 @@
+name: Read-only historic NEAR hash research
+on:
+  push:
+    branches: [feat/live-transfer-receipt-history]
+    paths: [scripts/explorer-probe.mjs, .github/workflows/explorer-probe.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node scripts/explorer-probe.mjs
