@@ -17,7 +17,7 @@ This is a separate contract **candidate**, not a migration of the working Testne
 - **Initialization hardened:** only a contract-account-signed transaction may call `new(owner_id)`. This prevents a third party from racing to initialize an uninitialized escrow and assigning themselves as contract owner. The escrow contract must have a secure FullAccess signing key and be initialized from that account; a wallet connected only as `afrolite.near` cannot invoke the initializer as the escrow. Owner-only `set_paused` remains controlled by `afrolite.near`. New adversarial Rust tests added.
 - `create_transfer({ recipient, transfer_amount })` requires exact **transfer amount + 0.02 NEAR storage fee**. Storage fee is **not refundable**, including for timely cancellations. The contract checks actual incremental storage is fully covered; no subsidized unbounded account-history vectors.
 - **0.01 to 2 NEAR per payment**, max **50 NEAR simultaneously reserved**, minimum **0.5 NEAR independent contract operating reserve** above storage and pending escrow.
-- Owner-controlled **pause new deposits only**. Existing cancels, refunds and releases remain possible while paused.
+- **New deployments START PAUSED**: no deposits are allowed until `afrolite.near` explicitly calls `set_paused(false)`. Only after independent audit and controlled final testing. Owner pause blocks new deposits only; existing refunds and releases remain possible.
 - Bounded, append-only per-account sender/recipient indexes with at most 50 returned records and a 500-entry offset limit. Caller cannot require sorting an entire history.
 - Bounded Mainnet release worker with persistent cursor, newest-ID priority and contract-code verification. Keeper signs only permissionless release calls, never customer deposits.
 - Mainnet SDK V2 candidate builder and an additional frontend release gate. The frontend requires **all**: `VITE_ENABLE_MAINNET_PAYMENTS=true`, `VITE_NEAR_MAINNET_CONTRACT_ID` with a .near account, and `VITE_MAINNET_EXPECTED_CODE_HASH`. It checks the **live** NEAR Mainnet code hash before connecting and again before every signature.
@@ -37,14 +37,14 @@ This is a separate contract **candidate**, not a migration of the working Testne
 
 ## Verified REAL V2 deployment and immutable build evidence
 
-- **Deployed ephemeral Testnet V2 contract:** `escrow.rewind-v2-mwglgeow-a4bd9385.testnet`
-- **Onchain NEAR `code_hash`:** `A7cptN7Nbks1Mi8GbPozwFvhqdEXgH5dW1cmwW3E2Huv`
-- **WASM SHA-256:** `876b2ce33694813263a44093471cd1119e59a1ce036c0469e9802aa7e0937bb5`
-- **CI full test:** https://github.com/Okiki3/Rewind/actions/runs/43613229545
-- **Testnet explorer:** https://testnet.nearblocks.io/address/escrow.rewind-v2-mwglgeow-a4bd9385.testnet
-- **Initial cancellation/refund:** https://testnet.nearblocks.io/txns/D7fpHW6vR6eNwVdJJxdgkCUAsvEwcfor1MaaWZfobBWn
+- **Deployed ephemeral Testnet V2 contract:** `escrow.rewind-v2-mwgmk1yl-f997426b.testnet`
+- **Onchain NEAR `code_hash`:** `BNVC3dFi3HigCqTAtW2sxxW8vJLNrPzi3yTXDjwBdstW`
+- **WASM SHA-256:** `9a15f0f7cd347566982a5dbbf7eb994037c1932bed2f22f8c1c14981975ac333`
+- **CI full test:** https://github.com/Okiki3/Rewind/actions/runs/43616110769
+- **Testnet explorer:** https://testnet.nearblocks.io/address/escrow.rewind-v2-mwgmk1yl-f997426b.testnet
+- **Initial cancellation/refund:** https://testnet.nearblocks.io/txns/5EeKyDtCYY88uy1xxm57xJLxCwBa4mLhijuqNqppDHYB
 - **Released after expiry by bounded keeper:** https://testnet.nearblocks.io/txns/9iDiTcsWvsVM1pSbDxoBnaJnHXFpdNnzBVaCdkWBvQMy (creation transaction); the same CI job invoked the actual keeper scanner after the deadline without a recipient click
-- **Recovery refund after a failed payment to a missing account:** https://testnet.nearblocks.io/txns/axAM6UmXTyBx4hj3HFbDemhdn3SfRtT4SgsujeArqgE
+- **Recovery refund after a failed payment to a missing account:** https://testnet.nearblocks.io/txns/9nmoiLunU9S2PqJVPSH5QXBCQmgv54or7D8vUCPqYS1X
 - **Confirmed onchain end state:** all V2 transfers resolved; `get_total_reserved()` = `0`.
 - **Additional independent read-only finality verification of previous V2 run:** https://github.com/Okiki3/Rewind/actions/runs/43603357365
 
