@@ -182,6 +182,8 @@ function App() {
         setTx({ kind: 'error', message: 'Please review the recipient again before sending.' })
         return
       }
+      const known = new Set(history.map((entry) => entry.id))
+      const submittedAt = Date.now()
       // Open a named wallet window during the click itself. MyNearWallet
       // performs asynchronous RPC work before attempting to show its popup.
       const popup = prepareWalletApproval()
@@ -200,8 +202,6 @@ function App() {
       setPendingHash(hash)
       setReview(null)
       const generation = ++trackGeneration.current
-      const known = new Set(history.map((entry) => entry.id))
-      const submittedAt = Date.now()
       const sentRecipient = recipient.trim().toLowerCase()
       const sentYocto = parseNearAmount(amount)
 
