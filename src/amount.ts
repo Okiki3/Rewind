@@ -7,6 +7,6 @@ export function parseNear(value: string) {
 export function formatNear(yocto: string) {
   const value = BigInt(yocto)
   const whole = value / 10n ** 24n
-  const fraction = (value % 10n ** 24n).toString().padStart(24, '0').slice(0, 5).replace(/0+$/, '')
+  const fraction = (value % 10n ** 24n).toString().padStart(24, '0').replace(/0+$/, '')
   return fraction ? `${whole}.${fraction}` : whole.toString()
 }
