@@ -123,7 +123,16 @@ async function main() {
   assert.equal(await view('get_min_payment'), (oneNear / 100n).toString());
   assert.equal(await view('get_max_payment'), (2n * oneNear).toString());
   assert.equal(await view('get_total_reserved'), '0');
-  assert.equal(await view('is_paused'), false);
+  assert.equal(await view('is_paused'), true, 'New Mainnet candidate must block deposits by default');
+  await assert.rejects(() => send('create_transfer', {
+    recipient: recipientId, transfer_amount: amount.toString(),
+  }, amount + storageFee), 'Unaudited, newly deployed escrow must reject deposits');
+  console.log('REWIND_V2_DEFAULT_PAUSED_ON_REAL_CHAIN=PASS');
+  await contract.functionCall({
+    contractId, methodName: 'set_paused', args: { paused: false },
+    gas: tgas, attachedDeposit: 0n,
+  });
+  assert.equal(await view('is_paused'), false, 'Only test's contract owner enables Testnet payments');
   console.log('REWIND_V2_CONTRACT=' + contractId);
   console.log('REWIND_V2_CODE_HASH=' + codeHash);
   console.log('REWIND_V2_WASM_SHA256=' + wasmSha256);
