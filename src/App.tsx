@@ -26,6 +26,7 @@ import {
   storePaymentHash, formatPaymentTime,
 } from './transfer-records'
 import { findHistoricalHashes } from './explorer-history'
+import MainnetDeployment from './MainnetDeployment'
 
 const initialTx: TxState = { kind: 'idle', message: '' }
 
@@ -546,16 +547,7 @@ function App() {
           <small className="form-help">{isMainnetPreview ? 'Verification only. Mainnet transfers and wallet signing are disabled while the escrow undergoes security review.' : 'A REWIND-protected payment can be cancelled by its sender for 60 seconds after the contract accepts it.'}</small>
         </form>
 
-        {isMainnetPreview ? <div className="panel inspect mainnet-roadmap" id="transfer-status">
-          <div className="panel-title"><span>MAINNET</span><div><h2>Protected payments are not live yet</h2><p>We are building the Mainnet release with the same 60-second protection model.</p></div></div>
-          <div className="mainnet-roadmap-steps">
-            <p><strong>01 · Secure the contract</strong><span>Review contract behavior, storage costs and dependency advisories.</span></p>
-            <p><strong>02 · Deploy and verify</strong><span>Deploy a separately controlled Mainnet contract with verifiable code and custody.</span></p>
-            <p><strong>03 · Activate payments</strong><span>Connect wallets, publish a pinned SDK and enable transfers after validation.</span></p>
-          </div>
-          <p className="mainnet-roadmap-note">No Mainnet contract address has been published or approved. Switching networks does not move funds or convert existing Testnet transfers.</p>
-          <a className="button secondary" href={getNetworkSwitchHref('testnet')}>Try protected payments on Testnet <span aria-hidden="true">→</span></a>
-        </div> : <div className="panel inspect" ref={statusRef} id="transfer-status">
+        {isMainnetPreview ? <MainnetDeployment testnetHref={getNetworkSwitchHref('testnet')} /> : <div className="panel inspect" ref={statusRef} id="transfer-status">
           <div className="panel-title"><span>TRACK</span><div><h2>Transfer status</h2><p>Follow the payment's onchain status and confirmation.</p></div></div>
           <form className="search" onSubmit={(e) => { e.preventDefault(); void loadTransfer() }}>
             <input aria-label="Transfer ID" inputMode="numeric" value={lookupId} onChange={(e) => setLookupId(e.target.value)} placeholder="Enter transfer ID" />
