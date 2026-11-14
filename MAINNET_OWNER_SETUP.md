@@ -31,6 +31,20 @@ https://github.com/Okiki3/Rewind/actions/runs/43609112281
 
 Initialize V2 on the new escrow subaccount with `new({"owner_id":"afrolite.near"})` **after** security approval and deployment of the reviewed WASM to `escrow.afrolite.near`. The `owner_id` field controls the contract's `set_paused` function, **not** its deployment permissions. The deployed account's FullAccess keys control upgrades and must be managed and audited independently.
 
+## Confirmed wallet choice: Meteor
+
+The user selected **Meteor Wallet** to control the proposed owner account `afrolite.near`. Meteor's official web wallet is https://wallet.meteorwallet.app/; its browser extension can also connect to NEAR dApps. This wallet selection is **not proof of control** until the user approves a wallet-backed challenge.
+
+**Owner-only verification (safe to do now)**
+
+1. Open Meteor from a trusted bookmark or directly from the official website. Unlock it locally.
+2. Select **NEAR Mainnet** and confirm the active account shown by Meteor is exactly `afrolite.near`.
+3. Check the account balance privately for future creation/transaction costs. Do not transfer tokens to `escrow.afrolite.near` yet: that account does not exist and no deployment is authorised.
+4. Use a future reviewed Meteor-connected ownership challenge to prove custody of `afrolite.near`. Never copy its full-access private key or seed phrase into a CLI script, website, issue, chat or CI secret.
+5. Once the V2 contract receives independent security approval and the escrow upgrade-key custody scheme is agreed, use a wallet-signed, human-reviewed transaction to **create and fund** the new `escrow.afrolite.near` subaccount. Confirm all actions, receiver IDs and amounts in Meteor before approval.
+
+**Important:** a normal Meteor sign-in to a dApp does not automatically grant permission to create, deploy or upgrade a contract. The NEAR CLI has a separate interactive create-account/fund-myself flow, but its browser-wallet import is not guaranteed to work directly with Meteor on every device. Do not assume compatibility or import a full-access key into a third-party deployment website. Use only a tested and independently reviewed owner-signing flow.
+
 ## Safe next steps (no private keys in this repository or chat)
 
 1. Using the wallet where you control `afrolite.near`, confirm **Mainnet** and that it is the active signing account. You must authorize the transaction yourself.
