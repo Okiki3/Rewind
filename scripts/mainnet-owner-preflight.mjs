@@ -59,6 +59,17 @@ async function inspect() {
     process.exitCode = 1
     return
   }
+  // Conservative spendable estimate from public NEAR RPC account state:
+  // unlocked amount minus required storage stake not already covered by staked tokens.
+  // Still re-check in owner's wallet immediately before signing.
+  const byteCost = 10n ** 19n
+  const storageLock = BigInt(owner?.storage_usage ?? 0) * byteCost
+  const staked = BigInt(owner?.locked ?? '0')
+  const effectiveStorageLock = storageLock > staked ? storageLock - staked : 0n
+  const amount = BigInt(owner?.amount ?? '0')
+  const availableEstimate = amount > effectiveStorageLock ? amount - effectiveStorageLock : 0n
+  const buffer = 2n * 10n ** 22n
+  const enoughFor4NearPlusGas = availableEstimate >= 4n * 10n ** 24n + buffer
   const results = {
     checked_network: network,
     proposed_owner_id: ownerId,
@@ -67,6 +78,7 @@ async function inspect() {
     // Advisory only; reserve/gas/storage and wallet policy are NOT included.
     owner_raw_balance_above_5_1_near: Boolean(owner?.amount && BigInt(owner.amount) >= 51n * 10n ** 23n),
     owner_raw_balance_above_4_1_near: Boolean(owner?.amount && BigInt(owner.amount) >= 41n * 10n ** 23n),
+    owner_estimated_spendable_above_4_02_near: enoughFor4NearPlusGas,
     owner_raw_balance_above_3_6_near: Boolean(owner?.amount && BigInt(owner.amount) >= 36n * 10n ** 23n),
     owner_public_full_access_key_count: Array.isArray(keys?.keys)
       ? keys.keys.filter((entry) => entry.access_key?.permission === 'FullAccess').length
@@ -89,6 +101,7 @@ async function inspect() {
   console.log('REWIND_MAINNET_PREFLIGHT_READY_FOR_OWNER_SIGNED_ACCOUNT_CREATION=' + (go ? 'YES' : 'NO'))
   console.log('REWIND_MAINNET_OWNER_RAW_BALANCE_AT_LEAST_5_1_NEAR=' + results.owner_raw_balance_above_5_1_near)
   console.log('REWIND_MAINNET_OWNER_RAW_BALANCE_AT_LEAST_4_1_NEAR=' + results.owner_raw_balance_above_4_1_near)
+  console.log('REWIND_MAINNET_OWNER_ESTIMATED_SPENDABLE_AT_LEAST_4_02_NEAR=' + results.owner_estimated_spendable_above_4_02_near)
   console.log('REWIND_MAINNET_OWNER_RAW_BALANCE_AT_LEAST_3_6_NEAR=' + results.owner_raw_balance_above_3_6_near)
   console.log('REWIND_MAINNET_PREFLIGHT_NOT_A_SIGNING_OWNERSHIP_PROOF=TRUE')
   console.log('REWIND_MAINNET_PAYMENTS_ENABLED=FALSE')
