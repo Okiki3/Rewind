@@ -1,4 +1,4 @@
-import { actionCreators, setupWalletSelector, type FinalExecutionOutcome } from '@near-wallet-selector/core'
+import { actionCreators, setupWalletSelector, type InstantLinkWallet, type FinalExecutionOutcome } from '@near-wallet-selector/core'
 import { setupModal } from '@near-wallet-selector/modal-ui'
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet'
 import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet'
@@ -124,7 +124,7 @@ export async function connectWallet() {
   assertPaymentsEnabled()
   if (meteorNativeBridge && networkId === 'testnet') {
     const selector = await selectorPromise
-    const wallet = await selector.wallet('meteor-wallet-app')
+    const wallet = await selector.wallet('meteor-wallet-app') as InstantLinkWallet
     await wallet.signIn({ contractId, methodNames: [] })
     return
   }
