@@ -7,8 +7,8 @@ import {
 
 const sample: Transfer = {
   id: '8', sender: 'afrotest.testnet', recipient: 'afrolite.testnet',
-  amount: '100000000000000000000000', created_at_ms: '1794620000000',
-  expires_at_ms: '1794620060000', status: 'Pending', settled_at_ms: null,
+  amount: '100000000000000000000000', created_at_ms: String(Date.now() - 3_000),
+  expires_at_ms: String(Date.now() + 57_000), status: 'Pending', settled_at_ms: null,
 }
 const hash = '5RN3qgGTjnqJHNwd4PF6mtooYNdTSMDPsq4hDPBhQDXJ'
 
