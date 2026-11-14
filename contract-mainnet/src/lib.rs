@@ -542,4 +542,66 @@ mod tests {
         testing_env!(low_balance.build());
         c.create_transfer(account("bob.near"), U128(YOCTO));
     }
+    // Security-review regression: settlement in flight must not be sent twice.
+    #[test]
+    #[should_panic(expected = "Transfer is not deliverable")]
+    fn cancelled_in_flight_cannot_be_released_even_after_expiry() {
+        let mut c = setup();
+        create(&mut c, 1_000, "bob.near");
+        testing_env!(context("alice.near", 60_999, 0).build());
+        let _ = c.cancel(U64(0));
+        testing_env!(context("keeper.near", 61_000, 0).build());
+        let _ = c.release(U64(0));
+    }
+
+    #[test]
+    fn retry_after_failed_delivery_finalizes_only_once() {
+        let mut c = setup();
+        create(&mut c, 1_000, "bob.near");
+        testing_env!(context("keeper.near", 61_000, 0).build());
+        let _ = c.release(U64(0));
+        testing_env!(context("escrow.mainnet", 61_001, 0).build());
+        assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
+        assert_eq!(c.get_total_reserved(), U128(YOCTO));
+        testing_env!(context("keeper.near", 61_200, 0).build());
+        let _ = c.release(U64(0));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Releasing);
+        testing_env!(context("escrow.mainnet", 61_201, 0).build());
+        assert!(c.on_settle(U64(0), Ok(())));
+        assert_eq!(c.get_total_reserved(), U128(0));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Released);
+    }
+
+    #[test]
+    fn owner_pause_does_not_block_recovery_after_failed_delivery() {
+        let mut c = setup();
+        create(&mut c, 1_000, "bob.near");
+        testing_env!(context("keeper.near", 61_000, 0).build());
+        let _ = c.release(U64(0));
+        testing_env!(context("escrow.mainnet", 61_100, 0).build());
+        assert!(!c.on_settle(U64(0), Err(PromiseError::Failed)));
+        testing_env!(context("owner.near", 61_200, 0).build());
+        c.set_paused(true);
+        testing_env!(context("alice.near", 61_300, 0).build());
+        let _ = c.cancel(U64(0));
+        testing_env!(context("escrow.mainnet", 61_400, 0).build());
+        assert!(c.on_settle(U64(0), Ok(())));
+        assert_eq!(c.get_transfer(U64(0)).unwrap().status, TransferStatus::Cancelled);
+        assert_eq!(c.get_total_reserved(), U128(0));
+        assert!(c.is_paused());
+    }
+
+    #[test]
+    #[should_panic(expected = "Contract escrow exposure cap reached")]
+    fn total_open_principal_cannot_exceed_fifty_near() {
+        let mut c = setup();
+        for n in 0..25u64 {
+            testing_env!(context("alice.near", 1_000 + n, MAX_PAYMENT + STORAGE_FEE).build());
+            c.create_transfer(account("bob.near"), U128(MAX_PAYMENT));
+        }
+        assert_eq!(c.get_total_reserved(), U128(MAX_ESCROWED));
+        testing_env!(context("alice.near", 2_000, MAX_PAYMENT + STORAGE_FEE).build());
+        c.create_transfer(account("bob.near"), U128(MAX_PAYMENT));
+    }
+
 }
