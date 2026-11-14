@@ -192,29 +192,75 @@ function App() {
       } finally {
         finishWalletApproval(popup)
       }
-      const hash = outcome.transaction.hash
-      setTx({ kind: 'confirmed', message: 'Payment accepted onchain. Your 60-second protection period is active.', hash })
-      const id = findTransferId(outcome.receipts_outcome.flatMap((receipt: { outcome: { logs: string[] } }) => receipt.outcome.logs))
-      // History/status RPC calls are separate from the successful wallet
-      // transaction. A later lookup outage must NEVER downgrade a confirmed
-      // onchain payment to "Not confirmed" or encourage duplicate sending.
-      if (id) {
-        setLookupId(id)
-        try {
-          const updated = await viewTransfer(id)
-          if (updated) setTransfer(updated)
-        } catch {
-          // The transaction hash remains visible in the confirmed state.
-        }
-      }
-      if (accountId) {
-        try {
-          setHistory(await viewAccountTransfers(accountId))
-        } catch {
-          // History can refresh on the next polling interval.
-        }
-      }
+      const created = identifyCreatedPayment(outcome)
+      const hash = created.hash || outcome.transaction.hash
+      // Wallet approval and contract execution are complete here. A follow-up
+      // RPC request must never hold the countdown card or undo button hostage.
+      setTx({ kind: 'confirmed', message: 'Payment accepted onchain. The 60-second protection window is active.', hash })
+      setPendingHash(hash)
       setReview(null)
+      const generation = ++trackGeneration.current
+      const known = new Set(history.map((entry) => entry.id))
+      const submittedAt = Date.now()
+      const sentRecipient = recipient.trim().toLowerCase()
+      const sentYocto = parseNearAmount(amount)
+
+      const showNewPayment = (id: string, record: Transfer | null) => {
+        if (generation !== trackGeneration.current) return
+        selectActive(id, record)
+        if (hash) {
+          try {
+            setPaymentHashes(storePaymentHash(localStorage, localRecordsKey, id, hash))
+          } catch { /* The transaction remains confirmed even without local storage. */ }
+        }
+        if (record) setHistory((items) => [record, ...items.filter((entry) => entry.id !== id)])
+        setPendingHash(null)
+      }
+
+      if (created.id) showNewPayment(created.id, created.transfer)
+      else {
+        activeRef.current = null
+        setActiveTransferId(null)
+        setTransfer(null)
+        setTrackingNewPayment(true)
+      }
+
+      // Wallet adapters can omit both the JSON return and event logs.
+      // In that case, match a unique fresh record to the exact payment.
+      // Never guess the transfer number or re-submit the transaction.
+      void (async () => {
+        if (created.id && created.transfer) return
+        for (let attempt = 0; attempt < 8; attempt++) {
+          if (generation !== trackGeneration.current) return
+          try {
+            if (created.id) {
+              const current = await viewTransfer(created.id)
+              if (current && generation === trackGeneration.current) {
+                showNewPayment(created.id, current)
+                return
+              }
+            } else {
+              const latest = await viewAccountTransfers(accountId)
+              if (generation !== trackGeneration.current) return
+              setHistory(latest)
+              const matched = findNewTransfer(latest, known, accountId, sentRecipient, sentYocto, submittedAt)
+              if (matched) {
+                showNewPayment(matched.id, matched)
+                return
+              }
+            }
+          } catch { /* Network indexing can be delayed; continue read-only lookups. */ }
+          await new Promise((resolve) => window.setTimeout(resolve, 1_000))
+        }
+        if (generation === trackGeneration.current && !created.id) {
+          setTrackingNewPayment(false)
+          setTx({
+            kind: 'confirmed',
+            message: 'Payment confirmed, but the transfer ID is not available yet. Check your payment hash on the explorer; do not resend.',
+            hash,
+          })
+        }
+      })()
     } catch (error) {
       setTx({ kind: 'error', message: errorMessage(error) })
     } finally {
