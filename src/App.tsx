@@ -51,14 +51,15 @@ const SDK_SNIPPET = [
 ].join('\n')
 
 function App() {
-  const isMainnetPreview = getNetworkId() === 'mainnet'
+  const isMainnet = getNetworkId() === 'mainnet'
   const paymentsEnabled = isProtectedPaymentEnabled()
+  const isMainnetPreview = isMainnet && !paymentsEnabled
   const [accountId, setAccountId] = useState('')
   const [recipient, setRecipient] = useState('')
   const [amount, setAmount] = useState('0.1')
   const [review, setReview] = useState<Review | null>(null)
-  const [savedRecipient, setSavedRecipient] = useState(() => localStorage.getItem('rewind-saved-recipient') || '')
-  const [threshold, setThreshold] = useState(() => localStorage.getItem('rewind-threshold-near') || '')
+  const [savedRecipient, setSavedRecipient] = useState(() => localStorage.getItem('rewind-saved-recipient:' + getNetworkId()) || '')
+  const [threshold, setThreshold] = useState(() => localStorage.getItem('rewind-threshold-near:' + getNetworkId()) || '')
   const [lookupId, setLookupId] = useState('')
   const [transfer, setTransfer] = useState<Transfer | null>(null)
   const [activeTransferId, setActiveTransferId] = useState<string | null>(null)
@@ -457,10 +458,10 @@ function App() {
           <h1>Send NEAR with confidence.</h1>
           <p className="lede">Check recipient details before you send. REWIND-protected payments give senders 60 seconds to cancel a mistake before delivery. {isMainnetPreview && <strong> Protected transfers currently run on Testnet only.</strong>}</p>
           <div className="hero-actions">
-            <a className="button primary" href="#app">{isMainnetPreview ? 'Check a Mainnet address' : 'Try REWIND on Testnet'} <span aria-hidden="true">→</span></a>
+            <a className="button primary" href="#app">{isMainnetPreview ? 'Check a Mainnet address' : isMainnet ? 'Send protected NEAR on Mainnet' : 'Try REWIND on Testnet'} <span aria-hidden="true">→</span></a>
             <a className="button secondary" href={isMainnetPreview ? getNetworkSwitchHref('testnet') : '#developers'}>{isMainnetPreview ? 'Try protected Testnet payments' : 'Integrate with a wallet'} <span aria-hidden="true">↗</span></a>
           </div>
-          <p className="testnet-note"><i /> {isMainnetPreview ? 'NEAR Mainnet · Read-only preview · No funds moved' : 'NEAR Testnet prototype · Test tokens only'}</p>
+          <p className="testnet-note"><i /> {isMainnetPreview ? 'NEAR Mainnet · Read-only preview · No funds moved' : isMainnet ? 'NEAR Mainnet · Real NEAR · Wallet approval required' : 'NEAR Testnet prototype · Test tokens only'}</p>
         </div>
 
         <div className="hero-demo" aria-label="Illustrative protected transfer, not a live payment">
@@ -507,30 +508,31 @@ function App() {
 
       <section className="app-intro" id="app">
         <div><p className="section-kicker">{isMainnetPreview ? 'Mainnet explorer' : 'Try it'}</p><h2>{isMainnetPreview ? 'Check a Mainnet address.' : 'Make a protected payment.'}</h2></div>
-        <p>{isMainnetPreview ? 'Read-only checks use live NEAR Mainnet RPC. No wallet connection, transfers or real funds.' : 'Running on Testnet. Connect a Testnet wallet and use test tokens to see the full payment flow.'}</p>
+        <p>{isMainnetPreview ? 'Read-only checks use live NEAR Mainnet RPC. No wallet connection, transfers or real funds.' : isMainnet ? 'Real NEAR: connect a Mainnet wallet. A separate 0.02 NEAR non-refundable storage charge applies to each protected transfer, including cancellations.' : 'Running on Testnet. Connect a Testnet wallet and use test tokens to see the full payment flow.'}</p>
       </section>
 
       <section className="workspace">
         <form className="panel create" onSubmit={submitCreate}>
           <div className="panel-title"><span>{isMainnetPreview ? 'VERIFY' : 'SEND'}</span><div><h2>{isMainnetPreview ? 'Verify a Mainnet recipient' : 'Send NEAR'}</h2><p>{isMainnetPreview ? 'Check a Mainnet account and optional amount warnings. Nothing will be signed or sent.' : 'Enter an address and amount. Review the details before approving in your wallet.'}</p></div></div>
-          <label>Recipient NEAR account<input required value={recipient} onChange={(e) => { setRecipient(e.target.value); setReview(null) }} placeholder={isMainnetPreview ? 'friend.near' : 'friend.testnet'} /></label>
+          <label>Recipient NEAR account<input required value={recipient} onChange={(e) => { setRecipient(e.target.value); setReview(null) }} placeholder={isMainnet ? 'friend.near' : 'friend.testnet'} /></label>
           <div className="row">
-            <label>Amount<input required min="0.00001" step="any" type="number" value={amount} onChange={(e) => { setAmount(e.target.value); setReview(null) }} /><b>NEAR</b></label>
+            <label>Amount<input required min={isMainnet ? '0.01' : '0.00001'} max={isMainnet ? '2' : undefined} step="any" type="number" value={amount} onChange={(e) => { setAmount(e.target.value); setReview(null) }} /><b>NEAR</b></label>
 
           </div>
           <details className="contact-options"><summary>Additional checks (optional)</summary>
-            <input aria-label="Saved recipient to compare" value={savedRecipient} onChange={(e) => { setSavedRecipient(e.target.value); localStorage.setItem('rewind-saved-recipient', e.target.value); setReview(null) }} placeholder="e.g. alice.testnet" />
-            <label>Optional amount alert above (NEAR)<input aria-label="Amount warning threshold" value={threshold} onChange={(e) => { setThreshold(e.target.value); localStorage.setItem('rewind-threshold-near', e.target.value); setReview(null) }} placeholder="e.g. 1" inputMode="decimal" /></label>
+            <input aria-label="Saved recipient to compare" value={savedRecipient} onChange={(e) => { setSavedRecipient(e.target.value); localStorage.setItem('rewind-saved-recipient:' + getNetworkId(), e.target.value); setReview(null) }} placeholder="e.g. alice.testnet" />
+            <label>Optional amount alert above (NEAR)<input aria-label="Amount warning threshold" value={threshold} onChange={(e) => { setThreshold(e.target.value); localStorage.setItem('rewind-threshold-near:' + getNetworkId(), e.target.value); setReview(null) }} placeholder="e.g. 1" inputMode="decimal" /></label>
           </details>
           {review && <div className="preflight-review" role="status">
             <strong>{isMainnetPreview ? (review.valid ? 'Mainnet recipient check complete' : 'Mainnet recipient could not be verified') : review.warnings.some((warning) => warning.code === 'unverified') ? 'Verification temporarily unavailable' : review.warnings.some((warning) => warning.code === 'missing_account' || warning.code === 'lookalike') ? 'Check the recipient address' : review.warnings.length ? 'Additional payment checks' : 'Recipient verified. Review before sending.'}</strong>
             {review.warnings.map((warning, index) => <p key={index}>{warning.message}</p>)}
             <p>{isMainnetPreview ? 'Read-only review:' : "You're sending"} <strong>{amount} NEAR</strong> {isMainnetPreview ? 'for' : 'to'} <strong>{review.recipient}</strong>. {isMainnetPreview && 'No payment will be submitted.'}</p>
             {!review.valid && <p>{review.warnings.some((warning) => warning.code === 'unverified') ? 'REWIND could not check the network. No payment has been submitted. Please retry address verification.' : 'This recipient account was not found or is invalid. Check it before continuing.'}</p>}
+            {isMainnet && paymentsEnabled && <p><strong>Storage fee: 0.02 NEAR</strong> (charged separately, non-refundable even if cancelled). Your wallet will approve the amount above <strong>plus 0.02 NEAR</strong>. The maximum protected payment is 2 NEAR.</p>}
             {!review.valid && <button className="retry-check" type="button" onClick={() => { setReview(null); setTx(initialTx) }}>Retry address check</button>}
           </div>}
           <button className="primary form-submit" disabled={loading || (!isMainnetPreview && !!accountId && (!isNearAccountId(recipient.trim().toLowerCase()) || (review !== null && !review.valid)))}>{isMainnetPreview ? 'Check Mainnet recipient' : accountId ? (review?.valid ? 'Confirm and send NEAR' : 'Review payment') : 'Connect wallet to begin'} <span>→</span></button>
-          <small className="form-help">{isMainnetPreview ? 'Verification only. Mainnet transfers and wallet signing are disabled while the escrow undergoes security review.' : 'A REWIND-protected payment can be cancelled by its sender for 60 seconds after the contract accepts it.'}</small>
+          <small className="form-help">{isMainnetPreview ? 'Verification only. Mainnet transfers and wallet signing are disabled while the escrow undergoes security review.' : isMainnet ? 'Mainnet escrow requires 0.02 NEAR in non-refundable storage fees, plus network gas. Only the transfer amount is refundable if cancelled in time.' : 'A REWIND-protected payment can be cancelled by its sender for 60 seconds after the contract accepts it.'}</small>
         </form>
 
         {isMainnetPreview ? <div className="panel inspect mainnet-roadmap" id="transfer-status">
@@ -680,8 +682,8 @@ function App() {
         </div>
         <div className="footer-about">
           <strong>Built by <a href="https://x.com/kisc_0" target="_blank" rel="noopener noreferrer" aria-label="Afrolite on X">Afrolite</a></strong>
-          <span>{isMainnetPreview ? 'Mainnet read-only preview' : 'NEAR Testnet · Experimental prototype'}</span>
-          <p>{isMainnetPreview ? 'Real NEAR transfers disabled. Mainnet escrow not deployed.' : 'Test tokens only. Not audited for real-money use.'}</p>
+          <span>{isMainnetPreview ? 'Mainnet read-only preview' : isMainnet ? 'NEAR Mainnet · Real funds' : 'NEAR Testnet · Experimental prototype'}</span>
+          <p>{isMainnetPreview ? 'Real NEAR transfers disabled. Mainnet escrow not deployed.' : isMainnet ? 'Mainnet storage fee applies. Confirm the audited contract ID in your wallet.' : 'Test tokens only. Not audited for real-money use.'}</p>
         </div>
         <div className="footer-bottom">
           <span>© 2026 REWIND</span>
