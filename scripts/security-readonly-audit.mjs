@@ -110,7 +110,7 @@ async function checkContract() {
         method_name: method, args_base64: Buffer.from('{}').toString('base64'),
       });
       const value = JSON.parse(Buffer.from(query.result ?? []).toString('utf8'));
-      const valid = method === 'get_owner' ? typeof value === 'string' : /^\\d+$/.test(String(value));
+      const valid = method === 'get_owner' ? typeof value === 'string' : /^[0-9]+$/.test(String(value));
       result('Onchain read ' + method, valid, { value });
     } catch (e) { result('Onchain read ' + method, false, { error: String(e).slice(0,200) }); }
   }
