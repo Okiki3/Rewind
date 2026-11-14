@@ -46,8 +46,9 @@ Attacker capabilities: arbitrary accounts can submit deposit calls, trigger perm
 ## Dependency audit
 
 - Candidate `contract-mainnet/Cargo.lock`: RustSec found **0 known vulnerabilities** on 14 November 2026: https://github.com/Okiki3/Rewind/actions/runs/43603051354.
-- Current frontend production dependencies: **19 high / 6 low** npm advisories, including transitive NEAR Wallet Selector v10-related paths. Must be remediated or independently assessed for production exposure before Mainnet payment activation.
-- The official NEAR Wallet Selector repository now recommends evaluating **HOT Connect** as a modern connector. Evaluate and test a migration separately; do not silently change the live working Bitget mobile flow. The connector manifest, wallet executor origin and content integrity also require auditing.
+- **V2 candidate frontend:** migrated to Near Connect 0.12.0, removing the legacy NEAR Wallet Selector dependency chain. Production `npm audit --omit=dev --audit-level=high` now reports **0 vulnerabilities**: https://github.com/Okiki3/Rewind/actions/runs/43605502232. The new wallet chooser and mobile Bitget simulated-payment regression passed: https://github.com/Okiki3/Rewind/actions/runs/43605731313.
+- **Live site:** still runs the older wallet selector until actual desktop MyNearWallet/Meteor wallet approvals are manually verified on the new connector. Its previous dependency scan reported 19 high / 6 low findings.
+- **Remaining trust boundary:** Near Connect fetches wallet metadata and executor scripts from third-party origins. Even a zero-known-vulnerability npm audit does not validate mutable executor code. Review executable origins, manifest integrity, iframe isolation, wallet-origin identity and the transaction shown for approval before production rollout.
 
 ## Deployment/custody decisions required from the owner
 
