@@ -64,6 +64,8 @@ async function inspect() {
     proposed_owner_id: ownerId,
     owner_account_exists: Boolean(owner),
     owner_has_contract_code: Boolean(owner && owner.code_hash !== absent),
+    // Advisory only; reserve/gas/storage and wallet policy are NOT included.
+    owner_raw_balance_above_5_1_near: Boolean(owner?.amount && BigInt(owner.amount) >= 51n * 10n ** 23n),
     owner_public_full_access_key_count: Array.isArray(keys?.keys)
       ? keys.keys.filter((entry) => entry.access_key?.permission === 'FullAccess').length
       : null,
@@ -83,6 +85,7 @@ async function inspect() {
     !results.escrow_account_exists
 
   console.log('REWIND_MAINNET_PREFLIGHT_READY_FOR_OWNER_SIGNED_ACCOUNT_CREATION=' + (go ? 'YES' : 'NO'))
+  console.log('REWIND_MAINNET_OWNER_RAW_BALANCE_AT_LEAST_5_1_NEAR=' + results.owner_raw_balance_above_5_1_near)
   console.log('REWIND_MAINNET_PREFLIGHT_NOT_A_SIGNING_OWNERSHIP_PROOF=TRUE')
   console.log('REWIND_MAINNET_PAYMENTS_ENABLED=FALSE')
 
