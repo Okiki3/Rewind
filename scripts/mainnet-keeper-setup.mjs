@@ -41,7 +41,7 @@ const line=async(prompt,hidden=false)=>{
     const listener=(data)=>{
       for(const c of data.toString()){
         if(c==='\n'||c==='\r'){
-          stdin.off('data',listener);stdin.setRawMode?.(false);stdout.write('\n');resolve(value);return;
+          stdin.off('data',listener);stdin.setRawMode?.(false);stdin.pause();stdout.write('\n');resolve(value);return;
         }
         if(c==='\u0003'){stdin.setRawMode?.(false);process.exit(130)}
         if(c==='\u007f'||c==='\b'){value=value.slice(0,-1)}else{value+=c}
