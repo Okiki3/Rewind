@@ -20,10 +20,13 @@ describe('Rewind network selection', () => {
       .toBe('/rewind/?network=testnet')
   })
 
-  it('refuses every Mainnet protected-payment combination', () => {
+  it('refuses Mainnet payments by default, but allows the exact opted-in demo receiver', () => {
     expect(canUseProtectedTransfers('mainnet', '')).toBe(false)
     expect(canUseProtectedTransfers('mainnet', 'rewind.testnet')).toBe(false)
     expect(canUseProtectedTransfers('mainnet', 'rewind.near')).toBe(false)
+    expect(canUseProtectedTransfers('mainnet', 'afrolite-rewind-261114.near')).toBe(false)
+    expect(canUseProtectedTransfers('mainnet', 'rewind.near', true)).toBe(false)
+    expect(canUseProtectedTransfers('mainnet', 'afrolite-rewind-261114.near', true)).toBe(true)
   })
 
   it('allows only configured Testnet protected-payment contracts', () => {
