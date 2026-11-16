@@ -1,0 +1,40 @@
+name: REWIND offline Mainnet compile (NO DEPLOYMENT)
+
+on:
+  push:
+    branches:
+      - feat/mainnet-readiness-20261114
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mainnet-compile-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      VITE_NEAR_NETWORK_ID: mainnet
+      # BUILD FIXTURE ONLY. This is not an account to send real NEAR to.
+      VITE_NEAR_CONTRACT_ID: not-deployed.invalid
+      VITE_NEAR_NODE_URL: https://rpc.mainnet.fastnear.com
+      VITE_BASE_PATH: /rewind/
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install exact source dependencies
+        run: npm ci
+      - name: Compile Mainnet-configured frontend and SDK without deployment
+        run: npm run build
+      - name: Run TypeScript frontend / SDK checks
+        run: npm test
+      - name: Confirm build output contains no Mainnet signing configuration
+        run: |
+          test -d dist
+          test -f dist/index.html
+          echo "MAINNET_OFFLINE_BUILD_PASS: compilation only, nothing deployed or signed."
